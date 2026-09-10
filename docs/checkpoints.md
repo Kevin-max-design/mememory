@@ -99,3 +99,50 @@ REMAINING LIMITATIONS:
   acknowledging the dashboard branch label. Hosted confirmation template is not configured.
 NEXT PHASE:
 - Complete remote Phase 3 gates. Do not begin Phase 4 until Phase 3 passes.
+
+## Phase 4 — Secure storage and upload
+STATUS: PASS
+IMPLEMENTED: authenticated PDF/JPEG/PNG/WEBP upload endpoint and dashboard; private
+storage; byte/MIME/extension validation; 20 MiB limit; generated paths; SHA-256;
+document and queued-job persistence; compensating cleanup with explicit errors.
+FILES CHANGED: apps/web/src/app/api/documents/route.ts, dashboard/page.tsx,
+components/document-upload.tsx, features/documents, lib/supabase/admin.ts, upload tests.
+COMMANDS RUN: npm test; npm run lint; npm run typecheck; npm run build; anonymous curl
+upload; read-only Supabase document/job verification; browser bundle secret scan;
+gitignore and diff checks.
+TEST RESULTS: 23 tests in 6 files PASS; lint, typecheck and production build PASS;
+anonymous upload rejected with HTTP 401; live PDF and JPEG uploads PASS; 2 queued
+documents and 2 queued jobs verified; all paths and document-job relationships valid.
+ISSUES FOUND: remote project default branch remains labeled `main PRODUCTION`.
+FIXES APPLIED: server-only secret client; private UUID paths; rollback for each failure
+after object creation; no privileged key in browser output.
+REMAINING LIMITATIONS: PNG/WEBP covered synthetically rather than by remote writes;
+OCR and worker integration intentionally absent; pending auth migration not applied.
+NEXT PHASE: isolated stateless document processor using synthetic fixtures only.
+
+## Phase 5 — Document processor
+STATUS: PASS
+IMPLEMENTED: authenticated FastAPI health and analyze endpoints; strict Pydantic
+contracts; base64 payload and size validation; page-level PyMuPDF native extraction;
+Tesseract OCR abstraction; scanned PDF fallback; EXIF correction; grayscale, conditional
+CLAHE and conservative deskew; text blocks with confidence and bounding boxes; provider
+metadata; bounded rendering and stable error responses.
+FILES CHANGED: services/document-processor/app/main.py, errors.py, schemas.py,
+preprocessing.py, ocr.py, processor.py, app/tests, pyproject.toml, README.md,
+docs/checkpoints.md.
+COMMANDS RUN: editable processor dependency install; .venv/bin/pytest;
+.venv/bin/ruff check .; git diff --check.
+TEST RESULTS: 15 tests PASS; Ruff PASS. Tests cover health authentication, native PDF,
+image OCR, scanned PDF OCR, mixed page decisions, unsupported type, malformed PDF,
+zero bytes, MIME mismatch, unavailable OCR provider, response schema, absence of canned
+medical data, EXIF correction and geometry preservation.
+ISSUES FOUND: the initial dependency install was blocked by sandbox DNS and succeeded
+after the approved network retry. Python 3.14 emits upstream PyMuPDF SWIG and TestClient
+deprecation warnings.
+FIXES APPLIED: installed isolated OCR dependencies; normalized all service errors;
+enforced decoded-byte, page-count and rendered-pixel limits; retained internal shared-
+secret authentication.
+REMAINING LIMITATIONS: English is the Tesseract default; preprocessing does not persist
+a normalized image; no worker, Supabase access, job claiming or result persistence;
+the endpoint accepts internal base64 payloads and is not wired to uploaded documents.
+NEXT PHASE: persistence/job worker integration, only after explicit instruction.

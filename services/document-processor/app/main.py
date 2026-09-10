@@ -2,9 +2,15 @@
 import secrets
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.errors import ProcessorError
+from app.processor import DocumentProcessor
+from app.schemas import AnalyzeRequest, AnalyzeResponse
 
 
 class Settings(BaseSettings):
@@ -15,18 +21,48 @@ class Settings(BaseSettings):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.settings = Settings()
+    app.state.processor = DocumentProcessor()
     yield
 
 
 app = FastAPI(title="MedMemory internal processor", lifespan=lifespan)
 
 
+@app.exception_handler(ProcessorError)
+def handle_processor_error(_request: Request, error: ProcessorError):
+    return JSONResponse(
+        status_code=error.status_code,
+        content={"ok": False, "error": {"code": error.code, "message": error.message}},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+def handle_request_validation(_request: Request, _error: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "ok": False,
+            "error": {"code": "INVALID_REQUEST", "message": "The request is invalid."},
+        },
+    )
+
+
 def authenticate(x_service_secret: str = Header(default="")) -> None:
     expected = app.state.settings.document_processor_secret.get_secret_value()
     if not secrets.compare_digest(x_service_secret, expected):
-        raise HTTPException(status_code=401, detail={"code": "AUTH_REQUIRED"})
+        raise ProcessorError("AUTH_REQUIRED", "Internal authentication is required.", 401)
 
 
 @app.get("/health", dependencies=[Depends(authenticate)])
 def health():
     return {"ok": True, "data": {"service": "document-processor", "status": "healthy"}}
+
+
+@app.post(
+    "/v1/documents/analyze",
+    response_model=AnalyzeResponse,
+    dependencies=[Depends(authenticate)],
+)
+def analyze_document(payload: AnalyzeRequest, request: Request):
+    analysis = request.app.state.processor.analyze(payload)
+    return AnalyzeResponse(data=analysis)

@@ -1,9 +1,9 @@
 # MedMemory
 
 Patient-owned medical records with local processing and source provenance.
-**Current status: secure foundation deployed; authentication is implemented locally
-but remote acceptance verification is blocked pending confirmation of the Supabase
-target classification. Document upload is not implemented.**
+**Current status: authentication and secure private uploads are working against the
+development project. The stateless local document processor supports native PDF text
+and page-level Tesseract OCR fallback. Worker persistence is not connected.**
 See docs/product-brief.txt for the complete target specification and docs/architecture.md
 for the discovery results and architecture.
 
@@ -41,8 +41,10 @@ cd services/document-processor
 .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-GET /health requires the x-service-secret header. Health indicates service startup,
-not OCR readiness. The document analysis endpoint and worker are not implemented yet.
+GET /health and POST /v1/documents/analyze require the x-service-secret header. The
+analysis endpoint accepts a UUID, declared MIME type, base64 file payload, and bounded
+options. It returns page text, blocks, confidence and bounding boxes without database
+access. Health indicates service startup, not OCR readiness.
 
 ## Test and build
 
@@ -58,10 +60,10 @@ cd services/document-processor
 
 ## Supabase setup
 
-Use a development project only. Database migrations, generated types, RLS verification,
-and storage policies are pending. No schema has been applied. Do not upload real patient
-data to this foundation. A locally configured CLI login/project link or development
-PostgreSQL connection is required before migration execution.
+Use a development project only. The foundation schema, generated types, RLS verification,
+and private storage policies are deployed to the configured development project. The
+optional profile-bootstrap improvement remains pending and must not be applied without
+explicit approval while Supabase labels the default branch as production.
 
 ## Authentication
 
@@ -74,6 +76,6 @@ project's default branch as `main PRODUCTION`.
 
 ## Tesseract and Ollama
 
-Tesseract is available on the initial development host; OCR integration is pending.
+Tesseract powers local OCR for images and PDF pages without usable native text.
 Ollama will remain optional with deterministic evidence fallback. No paid cloud AI
 credentials are required.
