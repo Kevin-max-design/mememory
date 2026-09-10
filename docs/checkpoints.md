@@ -57,3 +57,45 @@ REMAINING LIMITATIONS: Auth API and Storage API integration tests remain for lat
 The dashboard does not list this migration in Supabase's CLI migration history because
 the repository uses its own checksum ledger in medmemory_migrations.
 NEXT PHASE: authentication.
+
+## Phase 3 — Authentication
+STATUS: BLOCKED
+IMPLEMENTED:
+- Supabase SSR browser/server clients with strict separation.
+- Next.js proxy session refresh using verified claims.
+- Signup, login, logout, confirmation callback, protected dashboard, safe redirects.
+- Server-side authorization uses a fresh Auth user lookup before patient data access.
+- Friendly bounded error mapping; upstream details are not exposed.
+- Existing deployed auth.users trigger bootstraps a profile row.
+- Pending migration improves bootstrap by copying bounded full-name metadata.
+FILES CHANGED:
+- apps/web/src/app/auth, dashboard, login, signup
+- apps/web/src/components/auth-form.tsx
+- apps/web/src/features/auth
+- apps/web/src/lib/supabase
+- apps/web/src/server/auth, apps/web/src/proxy.ts
+- apps/web/src/test/auth*.test.ts, logout.test.ts, vitest.config.mts
+- supabase/migrations/202609100001_auth_profile_bootstrap.sql
+- scripts/database.py, scripts/database_security.py, package files and docs
+COMMANDS RUN:
+- git ignore/checkpoint checks; database inspection over verify-full TLS
+- web formatter, lint, typecheck, Vitest, production build
+- live local request to /dashboard; browser-asset secret scan
+- attempted remote migration and rollback-only profile security test
+TEST RESULTS:
+- Preflight PASS: intended project ref, rotated connection, verified TLS, private bucket.
+- Web lint PASS; typecheck PASS; 12 tests PASS across 4 files.
+- Production build PASS with six routes and active Proxy.
+- Anonymous live /dashboard request PASS: 307 to /login?error=auth_required.
+- Browser assets PASS: no database password, service-role variable, or secret-key prefix.
+- Authenticated hosted route, logout against hosted Auth, and new profile assertion NOT RUN.
+ISSUES FOUND:
+- Automatic approval review classifies the remote default branch label `main PRODUCTION`
+  as production even though the project is named medmemory-dev and was created for this task.
+FIXES APPLIED:
+- No remote workaround attempted. All unaffected local implementation and checks completed.
+REMAINING LIMITATIONS:
+- Remote auth acceptance and profile-bootstrap migration require explicit authorization
+  acknowledging the dashboard branch label. Hosted confirmation template is not configured.
+NEXT PHASE:
+- Complete remote Phase 3 gates. Do not begin Phase 4 until Phase 3 passes.

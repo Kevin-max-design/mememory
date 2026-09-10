@@ -1,7 +1,9 @@
 # MedMemory
 
 Patient-owned medical records with local processing and source provenance.
-**Current status: foundation only. No patient-data workflows are implemented.**
+**Current status: secure foundation deployed; authentication is implemented locally
+but remote acceptance verification is blocked pending confirmation of the Supabase
+target classification. Document upload is not implemented.**
 See docs/product-brief.txt for the complete target specification and docs/architecture.md
 for the discovery results and architecture.
 
@@ -60,6 +62,15 @@ Use a development project only. Database migrations, generated types, RLS verifi
 and storage policies are pending. No schema has been applied. Do not upload real patient
 data to this foundation. A locally configured CLI login/project link or development
 PostgreSQL connection is required before migration execution.
+
+## Authentication
+
+The web app includes email/password signup, login, confirmation callback, logout,
+session refresh, protected dashboard routing, and server-side identity verification.
+Supabase's hosted email confirmation flow requires its confirmation email template
+to target `/auth/confirm` and the deployed/local site URL to be allowlisted. Remote
+acceptance testing remains blocked while the dashboard labels the development
+project's default branch as `main PRODUCTION`.
 
 ## Tesseract and Ollama
 

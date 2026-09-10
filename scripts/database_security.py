@@ -23,6 +23,8 @@ def run(db):
         a, b, document, page = (uuid4() for _ in range(4))
         for user in [a,b]:
             db.execute("insert into auth.users(id,aud,role) values(%s,'authenticated','authenticated')", (user,))
+        assert db.execute("select count(*) from public.profiles where id=any(%s)", ([a, b],)).fetchone() == (2,)
+        print('PASS profile rows bootstrap safely for new users')
         path = f'{a}/{document}/original/{uuid4()}.pdf'
         db.execute("""insert into public.documents(id,user_id,original_filename,display_name,mime_type,file_size,sha256,storage_path)
           values(%s,%s,'synthetic.pdf','Synthetic security fixture','application/pdf',100,%s,%s)""", (document,a,'a'*64,path))

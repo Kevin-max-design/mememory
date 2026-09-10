@@ -3,8 +3,7 @@ import { parseEnvironment } from "../schemas/environment";
 
 const configuration = {
   NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon",
-  SUPABASE_SERVICE_ROLE_KEY: "test-private",
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable",
   DOCUMENT_PROCESSOR_URL: "http://127.0.0.1:8000",
   DOCUMENT_PROCESSOR_SECRET: "s".repeat(32),
 };

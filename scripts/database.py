@@ -21,7 +21,7 @@ def connect():
     return psycopg.connect(
         host="aws-0-ap-northeast-1.pooler.supabase.com", port=5432,
         dbname="postgres", user=f"postgres.{PROJECT}", password=password,
-        sslmode="require", connect_timeout=15,
+        sslmode="verify-full", sslrootcert=ROOT / ".supabase-ca.crt", connect_timeout=15,
     )
 
 
@@ -58,6 +58,9 @@ def apply():
 
 def inspect():
     with connect() as db:
+        if not db.pgconn.ssl_in_use:
+            raise SystemExit("Database connection is not protected by TLS")
+        print(f"database target: {PROJECT}; verified TLS=True")
         rows = db.execute("""select c.relname,c.relrowsecurity from pg_class c
             join pg_namespace n on n.oid=c.relnamespace
             where n.nspname='public' and c.relkind='r' order by c.relname""").fetchall()
