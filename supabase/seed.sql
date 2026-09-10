@@ -1,0 +1,2 @@
+-- Intentionally empty. Synthetic fixtures are isolated inside rollback-only tests.
+-- Never seed medical history into production runtime tables.

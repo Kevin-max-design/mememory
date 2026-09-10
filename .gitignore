@@ -1,0 +1,14 @@
+node_modules/
+.next/
+.env*
+!.env.example
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.tsbuildinfo
+coverage/
+.DS_Store
+.supabase-ca.crt
+
+*.egg-info/

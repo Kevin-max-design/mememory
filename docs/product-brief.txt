@@ -1,0 +1,2700 @@
+You are Codex acting as the principal engineer, software architect, security engineer, database engineer, QA engineer, and release owner for a healthcare records product called MedMemory.
+
+Your job is to build the application from scratch inside the current repository and leave it in a demonstrably working, tested, documented state.
+
+This is an autonomous engineering task.
+
+Do not generate a speculative code dump.
+
+Operate on the repository.
+
+Inspect first.
+Plan second.
+Implement incrementally.
+Run commands.
+Read failures.
+Fix root causes.
+Verify.
+Commit/checkpoint logically.
+Then continue.
+
+Never claim success without evidence from commands you actually ran.
+
+⸻
+
+A. PRODUCT MISSION
+
+MedMemory is a patient-owned digital memory of a person’s medical history.
+
+It should securely transform scattered medical records into a structured, searchable, traceable longitudinal health archive.
+
+Users should be able to upload:
+
+* prescriptions
+* laboratory reports
+* discharge summaries
+* diagnostic reports
+* scanned documents
+* medical PDFs
+* photographs of records
+
+MedMemory should preserve the original record while producing:
+
+* OCR text
+* normalized document representation
+* structured medical information
+* longitudinal events
+* search
+* evidence-backed questions and answers
+* doctor handoff summaries
+* configurable emergency information
+* secure temporary sharing
+
+The product must prioritize:
+
+1. privacy
+2. correctness
+3. provenance
+4. reversibility
+5. user control
+6. failure transparency
+
+This is NOT a diagnosis engine.
+
+Never fabricate medical facts.
+Never create fake medical history.
+Never infer diagnoses that are absent from evidence.
+Never silently alter original records.
+
+⸻
+
+B. NON-NEGOTIABLE ENGINEERING PRINCIPLES
+
+Follow these rules throughout the entire build.
+
+B1. Repository-first behavior
+
+Before making changes, run and inspect:
+
+* pwd
+* ls / directory tree
+* git status
+* git branch
+* package files
+* existing source
+* existing migrations
+* environment templates
+* Python environment if present
+
+Determine whether:
+
+* the repo is empty
+* partially built
+* contains unrelated work
+* contains an older MedMemory attempt
+
+Never overwrite unrelated files.
+
+If existing MedMemory code is broken, preserve useful pieces only when they satisfy the new architecture.
+
+Prefer clean replacement over layering hacks onto broken abstractions.
+
+⸻
+
+B2. No fake completion
+
+Never:
+
+* create mock success responses and call a feature complete
+* hardcode demo medical information into production paths
+* return invented values when extraction fails
+* mark processing completed when only part of the pipeline succeeded
+* swallow exceptions
+* claim tests passed without running them
+
+⸻
+
+B3. Error transparency
+
+Every meaningful failure must result in:
+
+* structured log
+* useful internal error code
+* correct HTTP status
+* persisted processing error where appropriate
+* safe user-facing explanation
+
+Never use empty catch blocks.
+
+Never use patterns like:
+
+catch {
+  return false
+}
+
+without explicit handling.
+
+⸻
+
+B4. Security is server-enforced
+
+Frontend authorization is never sufficient.
+
+Every sensitive resource must be protected by:
+
+* authentication
+* server-side authorization
+* Supabase RLS
+* private storage policies
+
+⸻
+
+B5. Local-first AI
+
+The core product must not depend on paid AI APIs.
+
+Base functionality:
+
+OCR:
+
+* PyMuPDF
+* Tesseract
+* OpenCV
+
+Structured extraction:
+
+* deterministic parser
+* regex
+* optional Ollama
+
+QA:
+
+* retrieval
+* local Ollama when available
+* deterministic evidence fallback
+
+Ollama unavailability must degrade gracefully.
+
+⸻
+
+C. TARGET ARCHITECTURE
+
+Use this architecture unless a concrete repository constraint makes it impossible.
+
+medmemory/
+│
+├── apps/
+│   └── web/
+│       ├── src/
+│       │   ├── app/
+│       │   ├── components/
+│       │   ├── features/
+│       │   ├── lib/
+│       │   ├── server/
+│       │   ├── providers/
+│       │   ├── schemas/
+│       │   ├── types/
+│       │   └── test/
+│       ├── public/
+│       ├── package.json
+│       └── ...
+│
+├── services/
+│   └── document-processor/
+│       ├── app/
+│       │   ├── api/
+│       │   ├── core/
+│       │   ├── ocr/
+│       │   ├── preprocessing/
+│       │   ├── schemas/
+│       │   ├── extraction/
+│       │   └── tests/
+│       ├── pyproject.toml
+│       └── ...
+│
+├── supabase/
+│   ├── migrations/
+│   ├── seed.sql
+│   └── tests/
+│
+├── scripts/
+│
+├── docs/
+│   ├── architecture.md
+│   ├── security.md
+│   ├── data-model.md
+│   ├── processing-pipeline.md
+│   └── operations.md
+│
+├── .env.example
+├── README.md
+└── package configuration files
+
+Use a monorepo if practical.
+
+Avoid unnecessary workspace complexity if it harms reliability.
+
+⸻
+
+D. TECHNOLOGY CONTRACT
+
+Frontend:
+
+* current stable Next.js
+* App Router
+* React
+* TypeScript strict mode
+* Tailwind CSS
+* Server Components by default
+* Client Components only when interaction requires them
+
+Backend:
+
+* Next.js server actions and/or Route Handlers
+* avoid creating a separate Node API service unless genuinely required
+
+Document processing:
+
+* Python
+* FastAPI
+* Pydantic
+* PyMuPDF
+* OpenCV
+* Tesseract
+
+Database:
+
+* PostgreSQL via Supabase
+
+Authentication:
+
+* Supabase Auth
+
+Storage:
+
+* Supabase Storage
+* private bucket
+
+Validation:
+
+* Zod
+* Pydantic
+
+Frontend testing:
+
+* Vitest
+* React Testing Library where useful
+* Playwright for critical flows
+
+Python testing:
+
+* pytest
+
+Linting:
+
+* ESLint
+* Ruff where appropriate
+
+Formatting:
+
+* Prettier
+* Python formatter compatible with Ruff tooling
+
+⸻
+
+E. DATABASE SCHEMA CONTRACT
+
+Create database migrations.
+
+Do not manually mutate schema outside migrations.
+
+Use UUID primary keys.
+
+Use timestamptz.
+
+Required tables:
+
+profiles
+
+Fields:
+
+* id UUID referencing auth.users
+* full_name
+* date_of_birth
+* blood_group nullable
+* created_at
+* updated_at
+
+⸻
+
+documents
+
+Fields:
+
+* id
+* user_id
+* original_filename
+* display_name
+* mime_type
+* file_size
+* sha256
+* storage_path
+* normalized_storage_path nullable
+* document_type nullable
+* event_date nullable
+* processing_status
+* processing_error_code nullable
+* processing_error_message nullable
+* ocr_provider nullable
+* extraction_provider nullable
+* created_at
+* updated_at
+
+Status enum or constraint:
+
+* uploaded
+* queued
+* processing
+* needs_review
+* completed
+* failed
+
+⸻
+
+document_pages
+
+Fields:
+
+* id
+* document_id
+* user_id
+* page_number
+* width
+* height
+* rotation
+* skew_angle
+* native_text_used
+* created_at
+
+Unique:
+
+(document_id, page_number)
+
+⸻
+
+document_text_blocks
+
+Fields:
+
+* id
+* document_id
+* page_id
+* user_id
+* block_index
+* text
+* confidence nullable
+* bbox nullable
+* source_type
+* created_at
+
+Unique:
+
+(page_id, block_index)
+
+⸻
+
+medical_records
+
+Generic parent row.
+
+Fields:
+
+* id
+* user_id
+* document_id
+* record_type
+* event_date nullable
+* confidence
+* review_status
+* source_page_number nullable
+* source_block_ids
+* source_text nullable
+* extraction_method
+* fingerprint
+* created_at
+* updated_at
+
+review_status:
+
+* extracted
+* approved
+* corrected
+* rejected
+
+⸻
+
+diagnoses
+
+* id
+* medical_record_id
+* user_id
+* name
+* code nullable
+* diagnosed_at nullable
+* status nullable
+
+⸻
+
+medications
+
+* id
+* medical_record_id
+* user_id
+* name
+* generic_name nullable
+* dose nullable
+* dose_unit nullable
+* route nullable
+* frequency nullable
+* duration nullable
+* start_date nullable
+* end_date nullable
+* status nullable
+
+Never infer missing frequency or dosage.
+
+⸻
+
+lab_results
+
+* id
+* medical_record_id
+* user_id
+* test_name
+* original_value
+* numeric_value nullable
+* unit nullable
+* reference_range nullable
+* flag nullable
+* specimen nullable
+* collected_at nullable
+
+Never discard original value.
+
+⸻
+
+allergies
+
+* id
+* medical_record_id
+* user_id
+* allergen
+* reaction nullable
+* severity nullable
+* status nullable
+
+⸻
+
+procedures
+
+* id
+* medical_record_id
+* user_id
+* procedure_name
+* performed_at nullable
+* notes nullable
+
+⸻
+
+vitals
+
+Support:
+
+* blood_pressure
+* heart_rate
+* temperature
+* respiratory_rate
+* oxygen_saturation
+* height
+* weight
+* BMI
+* other measurements
+
+Use a sensible flexible model without turning the whole table into arbitrary JSON.
+
+⸻
+
+medical_events
+
+Fields:
+
+* id
+* user_id
+* document_id nullable
+* event_type
+* title
+* description nullable
+* event_date
+* source_record_id nullable
+* created_at
+
+⸻
+
+doctor_notes
+
+* id
+* medical_record_id
+* user_id
+* text
+
+⸻
+
+emergency_profiles
+
+* id
+* user_id
+* enabled
+* full_name
+* blood_group
+* allergies_summary
+* medications_summary
+* conditions_summary
+* emergency_contacts
+* warnings
+* updated_at
+
+Emergency information must be explicitly controlled by the user.
+
+⸻
+
+share_links
+
+Fields:
+
+* id
+* user_id
+* token_hash
+* expires_at
+* revoked_at nullable
+* access_code_hash nullable
+* access_count
+* last_accessed_at nullable
+* created_at
+
+Never store raw public tokens when avoidable.
+
+⸻
+
+share_link_documents
+
+* share_link_id
+* document_id
+
+Unique composite key.
+
+⸻
+
+processing_jobs
+
+Fields:
+
+* id
+* user_id
+* document_id
+* job_type
+* status
+* attempt_count
+* max_attempts
+* locked_at nullable
+* started_at nullable
+* completed_at nullable
+* last_error_code nullable
+* last_error_message nullable
+* created_at
+* updated_at
+
+job statuses:
+
+* queued
+* processing
+* completed
+* failed
+
+⸻
+
+audit_logs
+
+Fields:
+
+* id
+* user_id nullable
+* action
+* resource_type
+* resource_id nullable
+* metadata
+* ip_hash nullable
+* created_at
+
+Do NOT put medical record text inside audit logs.
+
+⸻
+
+F. DATABASE INTEGRITY RULES
+
+Use foreign keys.
+
+Use indexes on:
+
+* user_id
+* document_id
+* event_date
+* processing status
+* relevant search columns
+* share expiry/revocation lookups
+
+Use constraints for valid statuses.
+
+Use appropriate cascade behavior.
+
+Think carefully before using cascade deletion for audit logs.
+
+Every schema change must exist as a migration.
+
+After every migration:
+
+1. apply migration
+2. inspect schema
+3. regenerate database types
+4. run typecheck
+5. test RLS
+
+⸻
+
+G. RLS CONTRACT
+
+RLS must be enabled on every patient-owned table.
+
+Policies must enforce:
+
+user_id = auth.uid()
+
+for user-owned data.
+
+Users cannot:
+
+* select other users’ rows
+* insert using another user_id
+* update another user’s rows
+* delete another user’s rows
+
+For child tables, either duplicate user_id for strong policy simplicity or safely derive ownership through parent relations.
+
+Never depend on hidden frontend IDs.
+
+Write security tests.
+
+Minimum test:
+
+User A creates a document.
+
+User B attempts:
+
+SELECT
+UPDATE
+DELETE
+child-table access
+
+All must fail.
+
+⸻
+
+H. STORAGE CONTRACT
+
+Create a private bucket:
+
+medical-records
+
+Object convention:
+
+{user_id}/{document_id}/original/{generated_filename}
+
+Normalized versions:
+
+{user_id}/{document_id}/normalized/...
+
+Never use raw user filename as the authoritative path.
+
+Prevent:
+
+* ../
+* encoded traversal
+* filename injection
+* cross-user object references
+
+Verify storage ownership.
+
+⸻
+
+I. UPLOAD PIPELINE
+
+Upload API flow:
+
+1. require authenticated user
+2. parse multipart
+3. validate file size
+4. reject empty file
+5. detect content type
+6. verify extension/content consistency
+7. calculate SHA-256
+8. generate document UUID
+9. generate safe storage path
+10. upload object
+11. create document DB row
+12. enqueue processing job
+13. return document state
+
+If DB insert fails after storage upload:
+
+attempt cleanup.
+
+If storage cleanup also fails:
+
+log explicit orphan warning.
+
+Avoid silent orphan creation.
+
+Supported MVP:
+
+* application/pdf
+* image/jpeg
+* image/png
+* image/webp
+
+Set a documented size limit.
+
+⸻
+
+J. PROCESSING STATE MACHINE
+
+Create a domain helper.
+
+Allowed transitions:
+
+uploaded -> queued
+queued -> processing
+processing -> needs_review
+processing -> completed
+processing -> failed
+failed -> queued
+
+No arbitrary string updates.
+
+Invalid transition must throw a typed domain error.
+
+Do not set completed simply because OCR succeeded.
+
+Processing completion means all required persistence steps succeeded.
+
+⸻
+
+K. DOCUMENT PROCESSING SERVICE
+
+FastAPI endpoints:
+
+GET /health
+
+Returns service health.
+
+POST /v1/documents/analyze
+
+Accept secure internal request.
+
+Request should carry:
+
+* document ID
+* temporary/signed file reference OR internal file payload strategy
+* mime type
+* relevant options
+
+Response:
+
+* pages
+* text blocks
+* OCR metadata
+* extraction candidate data where appropriate
+
+Keep FastAPI stateless.
+
+Database ownership should generally remain in the Next.js/Supabase orchestration layer unless a strong reason exists otherwise.
+
+⸻
+
+L. PDF PROCESSING
+
+For PDFs:
+
+1. open using PyMuPDF
+2. inspect native text page by page
+3. calculate whether native text is usable
+4. if usable:
+    * preserve native text
+    * derive blocks if possible
+    * skip OCR for that page
+5. otherwise:
+    * render high-quality image
+    * preprocess
+    * OCR
+
+Do not OCR a clean digital PDF unnecessarily.
+
+Do not treat a PDF as either all-native or all-scanned if pages differ.
+
+Decision can occur page-by-page.
+
+⸻
+
+M. IMAGE PREPROCESSING
+
+Implement modular preprocessing.
+
+Possible operations:
+
+* EXIF correction
+* orientation detection
+* grayscale
+* CLAHE
+* denoise
+* deskew
+* thresholding where useful
+* sharpening
+
+Do not apply aggressive preprocessing universally.
+
+Maintain:
+
+* original
+* normalized version
+
+OCR should choose sensible preprocessing based on image quality.
+
+Write unit tests for geometry-preserving operations.
+
+⸻
+
+N. OCR ABSTRACTION
+
+Define an interface resembling:
+
+class OCRProvider(Protocol):
+    def extract(self, image: ImageInput) -> OCRResult:
+        ...
+
+Implement:
+
+TesseractOCRProvider
+
+Do not put Tesseract-specific assumptions into domain code.
+
+OCR result:
+
+page_number
+full_text
+blocks[]
+provider
+
+Block:
+
+id
+text
+confidence
+bbox
+
+⸻
+
+O. EXTRACTION PROVIDER ARCHITECTURE
+
+TypeScript or Python extraction domain should have a common contract.
+
+Example:
+
+ExtractionProvider
+
+Implement:
+
+1. DeterministicExtractionProvider
+2. OllamaExtractionProvider
+3. CompositeExtractionProvider
+
+Composite behavior:
+
+* deterministic extraction always available
+* optionally enhance using Ollama
+* validate Ollama output
+* merge only defensible results
+* never replace strong deterministic evidence with weaker hallucinated results
+
+⸻
+
+P. STRUCTURED EXTRACTION
+
+Extract categories such as:
+
+* patient identity
+* complaints
+* history
+* diagnoses
+* medications
+* allergies
+* vitals
+* labs
+* imaging
+* procedures
+* treatment
+* discharge advice
+* doctor notes
+
+For every candidate store:
+
+* normalized value
+* original source text
+* page
+* block IDs
+* extraction method
+* confidence
+
+Do not silently transform uncertain OCR into confident structured records.
+
+⸻
+
+Q. PROVENANCE CONTRACT
+
+Provenance is mandatory.
+
+Every extracted medical fact must support:
+
+Show Source
+
+The application must be able to navigate:
+
+structured fact
+→ medical_record
+→ document
+→ page
+→ source blocks
+→ original document
+
+If provenance is missing, do not promote that candidate into trusted structured data.
+
+⸻
+
+R. REVIEW WORKFLOW
+
+Documents should usually go to:
+
+needs_review
+
+after automatic extraction if structured medical information was generated.
+
+Review UI:
+
+LEFT:
+
+* source document preview
+
+RIGHT:
+
+* extracted structured data
+
+User actions:
+
+* approve field
+* edit field
+* reject field
+* inspect source
+* save corrections
+* approve record/document
+
+Confidence labels:
+
+* High
+* Medium
+* Low
+
+Avoid fake percentage confidence such as 93.42% unless it genuinely represents provider data and is explained.
+
+⸻
+
+S. SEARCH
+
+Implement PostgreSQL search before vectors.
+
+Search:
+
+* documents
+* OCR text
+* diagnoses
+* medications
+* labs
+* procedures
+* doctor notes
+* medical events
+
+Use PostgreSQL full-text or trigram search where useful.
+
+Provide filters:
+
+* record type
+* date range
+* document type
+
+Do not prematurely add a vector DB.
+
+⸻
+
+T. MEDICAL HISTORY QA
+
+Feature:
+
+Ask MedMemory
+
+Architecture:
+
+Question
+↓
+Query classification
+↓
+Retrieve user's relevant records
+↓
+Construct evidence context
+↓
+Generate answer
+↓
+Attach citations
+
+Rules:
+
+* only retrieve authenticated user’s data
+* evidence required
+* no evidence = clearly state no supporting record found
+* never invent
+* no generic diagnosis generation
+
+Example answer:
+
+Your stored records show two platelet measurements:
+• 14 May 2025 — 168,000 /µL
+• 11 May 2026 — 142,000 /µL
+Sources:
+[Lab report ...]
+
+Every factual claim derived from medical history must map to stored provenance.
+
+⸻
+
+U. LOCAL QA FALLBACK
+
+If Ollama is unavailable:
+
+Do not fail Ask MedMemory completely.
+
+Create deterministic responses for questions such as:
+
+* latest lab result
+* medication history
+* diagnosis history
+* hospital admissions
+* procedures
+* document lookup
+
+For unsupported semantic questions, respond:
+
+I found relevant records, but the local language model is currently unavailable. Here are the matching records...
+
+Do not fabricate an AI answer.
+
+⸻
+
+V. DOCTOR BRIEF
+
+Button:
+
+Generate Doctor Brief
+
+Sections:
+
+* patient overview
+* documented conditions
+* medications
+* allergies
+* important procedures
+* hospitalizations
+* recent investigations
+* relevant abnormal trends
+* recent medical timeline
+* attached/source records
+
+Only evidence-backed data.
+
+Allow user editing.
+
+Mark user edits separately from automatically extracted facts when practical.
+
+Export may be added later.
+
+⸻
+
+W. EMERGENCY PROFILE
+
+User explicitly configures fields.
+
+Do not automatically expose all records.
+
+Public emergency profile should show only fields enabled by the user.
+
+Generate:
+
+* secure random emergency token
+* optional QR representing the link
+
+Allow:
+
+* disable
+* regenerate token
+* revoke access
+
+Do not embed sensitive data directly inside QR payload.
+
+QR should contain only a URL/token reference.
+
+⸻
+
+X. SECURE SHARING
+
+User flow:
+
+1. select records
+2. choose expiration
+3. optional passcode
+4. create link
+5. copy link
+6. view active links
+7. revoke
+
+Security:
+
+* use >=256 bits cryptographically secure random token
+* store token hash
+* compare secure hash
+* do not expose internal document UUIDs as security mechanism
+* reject expired tokens
+* reject revoked tokens
+* rate limit
+* optionally hash passcodes using Argon2/bcrypt
+* audit accesses
+
+⸻
+
+Y. AUDIT LOG EVENTS
+
+Log:
+
+* LOGIN_SECURITY_EVENT if appropriate
+* DOCUMENT_UPLOADED
+* DOCUMENT_DELETED
+* SHARE_CREATED
+* SHARE_VIEWED
+* SHARE_REVOKED
+* EMERGENCY_PROFILE_VIEWED
+* ACCOUNT_DELETION_REQUESTED
+* ACCOUNT_DELETED
+
+Never log raw record content.
+
+⸻
+
+Z. CENTRAL ERROR MODEL
+
+Create typed domain errors.
+
+Suggested codes:
+
+AUTH_REQUIRED
+ACCESS_DENIED
+UPLOAD_EMPTY_FILE
+UPLOAD_FILE_TOO_LARGE
+UPLOAD_UNSUPPORTED_TYPE
+UPLOAD_INVALID_FILE
+STORAGE_UPLOAD_FAILED
+STORAGE_DELETE_FAILED
+DATABASE_INSERT_FAILED
+DATABASE_UPDATE_FAILED
+DOCUMENT_NOT_FOUND
+PROCESSING_INVALID_STATE
+PROCESSING_JOB_FAILED
+LOCAL_OCR_UNAVAILABLE
+OCR_PROCESSING_FAILED
+PDF_RENDER_FAILED
+EXTRACTION_FAILED
+EXTRACTION_INVALID_OUTPUT
+OLLAMA_UNAVAILABLE
+SHARE_TOKEN_INVALID
+SHARE_TOKEN_EXPIRED
+SHARE_TOKEN_REVOKED
+SHARE_PASSCODE_INVALID
+RATE_LIMITED
+INTERNAL_ERROR
+
+HTTP mappings should be correct.
+
+Examples:
+
+400 validation
+401 authentication
+403 authorization
+404 missing
+409 state conflict
+413 file size
+422 parse/semantic validation
+429 rate limit
+500 internal failure
+503 unavailable dependency
+
+⸻
+
+AA. API CONTRACT
+
+Consistent envelope.
+
+Success:
+
+{
+  "ok": true,
+  "data": {}
+}
+
+Failure:
+
+{
+  "ok": false,
+  "error": {
+    "code": "UPLOAD_UNSUPPORTED_TYPE",
+    "message": "This file type is not supported."
+  }
+}
+
+Log technical detail server-side.
+
+Do not expose secrets, stack traces, file-system paths, SQL details, or service-role information.
+
+⸻
+
+AB. IDEMPOTENCY & DUPLICATION
+
+This is critical.
+
+Processing retries must not duplicate records.
+
+Create deterministic fingerprints.
+
+Possible fingerprint inputs:
+
+document_id
+record_type
+normalized source text
+page number
+semantic identity
+
+Use database uniqueness where possible.
+
+Reprocessing should:
+
+* update existing candidate
+    or
+* replace extraction batch transactionally
+
+Never blindly append extraction results.
+
+⸻
+
+AC. TRANSACTION STRATEGY
+
+Use DB transactions for logical atomic operations.
+
+Examples:
+
+* persist extraction batch
+* approve/correct a medical fact
+* share creation + selected documents
+* destructive deletion bookkeeping
+
+Do not leave partially persisted medical extraction without explicit state.
+
+⸻
+
+AD. FRONTEND ROUTES
+
+Create:
+
+/
+ /login
+ /signup
+ /dashboard
+ /records
+ /records/[id]
+ /records/[id]/review
+ /upload
+ /timeline
+ /search
+ /ask
+ /doctor-brief
+ /emergency
+ /sharing
+ /settings
+
+Use protected layout for authenticated areas.
+
+⸻
+
+AE. DASHBOARD
+
+Show:
+
+* Upload Record CTA
+* total records
+* recently uploaded
+* processing jobs
+* records requiring review
+* recent timeline events
+* active share links
+* Ask MedMemory shortcut
+
+Do not display fabricated health insights.
+
+⸻
+
+AF. DESIGN SYSTEM
+
+Visual direction:
+
+* modern clinical product
+* calm
+* premium
+* high readability
+* whitespace
+* restrained color
+* minimal visual noise
+
+Do not make it look like:
+
+* crypto dashboard
+* gaming app
+* AI neon SaaS template
+
+Use consistent:
+
+* spacing
+* typography
+* cards
+* tables
+* badges
+* state indicators
+* skeletons
+* empty states
+
+⸻
+
+AG. LOADING STATES
+
+Every async UI needs appropriate state.
+
+Implement:
+
+* upload progress
+* processing state
+* OCR pending
+* extraction pending
+* review required
+* failure card
+* retry action
+
+Do not leave users staring at indefinite spinners.
+
+⸻
+
+AH. DOCUMENT DETAIL VIEW
+
+Display:
+
+Header:
+
+* display name
+* medical document type
+* event date
+* processing state
+
+Tabs:
+
+Overview
+Document
+Extracted Data
+Text
+Activity
+
+Document tab:
+
+* original
+* normalized
+
+Extracted Data:
+
+* organized medical categories
+* confidence
+* review status
+* Show Source
+
+Text:
+
+* OCR/native page text
+
+Activity:
+
+* processing events
+* audit-safe actions
+
+⸻
+
+AI. DELETE BEHAVIOR
+
+Deleting one document must address derived data.
+
+Create an explicit deletion service.
+
+Deletion sequence should safely handle:
+
+* original storage
+* normalized versions
+* pages
+* OCR blocks
+* medical records
+* derived events
+* share associations
+
+Audit the deletion.
+
+If deletion partially fails, report it accurately.
+
+Never claim fully deleted if storage cleanup failed.
+
+⸻
+
+AJ. ACCOUNT DELETION
+
+Implement careful account deletion.
+
+Delete/anonymize as appropriate:
+
+* documents
+* storage
+* medical records
+* emergency profile
+* active shares
+* application profile
+
+Auth user deletion may require service role.
+
+Service role must only execute server-side.
+
+Provide explicit irreversible confirmation.
+
+⸻
+
+AK. ENVIRONMENT VALIDATION
+
+Create schema for environment variables.
+
+Example variables:
+
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+DOCUMENT_PROCESSOR_URL
+DOCUMENT_PROCESSOR_SECRET
+OLLAMA_BASE_URL
+OLLAMA_MODEL
+
+Application should fail early with useful errors for mandatory env vars.
+
+Ollama should be optional.
+
+⸻
+
+AL. INTERNAL SERVICE AUTHENTICATION
+
+The document processing FastAPI service must not become a public unauthenticated OCR endpoint.
+
+Implement one sensible development-friendly internal authentication mechanism.
+
+At minimum:
+
+* shared service secret
+    or
+* signed request
+
+Document the threat model.
+
+⸻
+
+AM. RATE LIMITING
+
+Add practical protection for:
+
+* login-sensitive flows if appropriate
+* share access
+* emergency public access
+* document upload
+* expensive QA endpoint
+
+Do not introduce complex infrastructure unless needed.
+
+A database-backed or in-process development strategy is acceptable initially, but document production limitations.
+
+⸻
+
+AN. OBSERVABILITY
+
+Structured application logging.
+
+Recommended fields:
+
+level
+timestamp
+request_id
+user_id
+document_id
+job_id
+action
+error_code
+
+Redact:
+
+* JWT
+* service role keys
+* share tokens
+* raw documents
+* full extracted medical content
+
+⸻
+
+AO. TEST FIXTURES
+
+Create synthetic medical documents for testing.
+
+Do NOT use real patient information.
+
+Create fixtures such as:
+
+1. text PDF with basic CBC values
+2. scanned prescription image
+3. rotated image
+4. empty file
+5. malformed PDF
+6. unsupported text file
+7. duplicate processing case
+
+Synthetic example data must clearly belong only to tests.
+
+Never leak fixture values into runtime fallback behavior.
+
+⸻
+
+AP. REQUIRED PYTHON TESTS
+
+Test:
+
+* health endpoint
+* native PDF extraction
+* scanned page fallback
+* image preprocessing
+* EXIF correction if fixture available
+* block generation
+* OCR provider failure
+* unsupported type
+* malformed document
+* extraction schema validation
+
+⸻
+
+AQ. REQUIRED WEB TESTS
+
+Unit/integration:
+
+* Zod validation
+* upload validation
+* path generation
+* error mapper
+* document state machine
+* fingerprint generation
+* provider selection
+* Ollama optional behavior
+
+⸻
+
+AR. REQUIRED DATABASE SECURITY TESTS
+
+Verify:
+
+User A cannot:
+
+* select User B documents
+* insert records for User B
+* update User B data
+* delete User B data
+
+Also test:
+
+* anonymous access denied
+* share-link pathway cannot bypass RLS incorrectly
+* storage paths isolated
+
+⸻
+
+AS. REQUIRED E2E TESTS
+
+Critical user journey:
+
+sign up / login
+→ upload test document
+→ processing begins
+→ document reaches review
+→ review extracted field
+→ approve
+→ timeline shows event
+→ search finds data
+→ Ask MedMemory retrieves it
+
+Sharing journey:
+
+create link
+→ access link
+→ revoke
+→ access fails
+
+At least these must be automated where local infrastructure supports them.
+
+⸻
+
+AT. QUALITY GATES
+
+A phase is not complete unless relevant commands pass.
+
+Frontend:
+
+npm run lint
+npm run typecheck
+npm test
+npm run build
+
+or package-manager equivalents.
+
+Python:
+
+ruff check .
+pytest
+
+Database:
+
+migration apply succeeds
+RLS verification succeeds
+
+E2E:
+
+playwright test
+
+Where infrastructure blocks a command, state exact blocker.
+
+Do not mark PASS.
+
+⸻
+
+AU. GIT WORKFLOW
+
+Do not make destructive Git actions.
+
+Never:
+
+* reset –hard
+* force push
+* remove unrelated uncommitted work
+
+After each completed logical phase:
+
+* inspect git diff
+* ensure no secrets are present
+* summarize changed files
+
+If commits are allowed, use clear commit messages like:
+
+chore: initialize medmemory workspace
+feat: add secure patient data schema
+feat: implement document upload pipeline
+feat: add local OCR processing service
+feat: add extraction provenance workflow
+
+If you cannot commit, create logical checkpoints in your progress report.
+
+⸻
+
+AV. AUTONOMOUS PHASE PLAN
+
+Follow this order.
+
+PHASE 0 — DISCOVERY
+
+Perform repository inspection.
+
+Output:
+
+Repository State
+Existing Technologies
+Reusable Components
+Conflicts
+Risks
+Architecture Decision
+Implementation Plan
+
+Do not implement feature code before completing discovery.
+
+⸻
+
+PHASE 1 — FOUNDATION
+
+Create:
+
+* workspace
+* Next.js
+* TypeScript
+* Tailwind
+* lint
+* tests
+* FastAPI skeleton
+* pytest
+* Ruff
+* env validation
+
+Verify both services start/build.
+
+Gate:
+
+PASS required before Phase 2.
+
+⸻
+
+PHASE 2 — DATABASE & SECURITY FOUNDATION
+
+Create migrations:
+
+* tables
+* enums/constraints
+* indexes
+* triggers if required
+* RLS
+* storage policies
+
+Generate DB types.
+
+Run security tests.
+
+Gate:
+
+No RLS failures.
+
+⸻
+
+PHASE 3 — AUTH
+
+Implement:
+
+* signup
+* login
+* logout
+* protected routes
+* session refresh
+* profile bootstrap
+
+Gate:
+
+Unauthorized users cannot access app data.
+
+⸻
+
+PHASE 4 — SECURE STORAGE & UPLOAD
+
+Implement:
+
+* upload page
+* validation
+* storage
+* document creation
+* queue job
+* upload states
+
+Gate:
+
+Valid test PDF succeeds.
+Invalid files fail correctly.
+
+⸻
+
+PHASE 5 — DOCUMENT PROCESSOR
+
+Implement FastAPI service.
+
+Native PDF extraction first.
+
+OCR fallback.
+
+Image preprocessing.
+
+Return structured OCR response.
+
+Gate:
+
+Python tests pass.
+
+⸻
+
+PHASE 6 — JOB WORKER
+
+Build lightweight worker.
+
+Possible approach:
+
+* DB-backed job queue
+* worker script/process
+
+Requirements:
+
+* locking
+* retry
+* stale job recovery where reasonable
+* idempotency
+
+Gate:
+
+A queued document reliably reaches processing.
+
+⸻
+
+PHASE 7 — OCR PERSISTENCE
+
+Persist:
+
+* pages
+* blocks
+* normalized document metadata
+
+Gate:
+
+Source trace can reconstruct page/block evidence.
+
+⸻
+
+PHASE 8 — STRUCTURED EXTRACTION
+
+Implement deterministic medical extraction.
+
+Add optional Ollama enhancement.
+
+Validate output.
+
+Persist provenance.
+
+Gate:
+
+Synthetic fixture extraction is correct enough for defined fixtures.
+
+No fake output.
+
+⸻
+
+PHASE 9 — REVIEW
+
+Build source + structured data review UI.
+
+Gate:
+
+User can approve, correct, reject extracted fact.
+
+⸻
+
+PHASE 10 — TIMELINE
+
+Build chronological medical history.
+
+Use event date.
+
+Fallback to appropriate known date only when necessary and label uncertainty.
+
+Gate:
+
+Approved test record appears correctly.
+
+⸻
+
+PHASE 11 — SEARCH
+
+Implement indexed search.
+
+Gate:
+
+Known fixture queries return expected records.
+
+⸻
+
+PHASE 12 — ASK MEDMEMORY
+
+Implement evidence retrieval.
+
+Implement citations.
+
+Optional Ollama generation.
+
+Deterministic fallback.
+
+Gate:
+
+Evidence question succeeds.
+
+Unsupported/no-evidence question does not hallucinate.
+
+⸻
+
+PHASE 13 — DOCTOR BRIEF
+
+Evidence-backed summary.
+
+Editable.
+
+Gate:
+
+All automatic statements trace to records.
+
+⸻
+
+PHASE 14 — EMERGENCY PROFILE
+
+Explicit field configuration.
+
+Secure token.
+
+QR support if practical.
+
+Gate:
+
+Only configured fields exposed.
+
+⸻
+
+PHASE 15 — SHARING
+
+Implement:
+
+* selected records
+* secure tokens
+* expiration
+* revoke
+* optional access code
+* audit
+
+Gate:
+
+revoked/expired share inaccessible.
+
+⸻
+
+PHASE 16 — PRIVACY CONTROLS
+
+Implement:
+
+* document deletion
+* account deletion
+* session controls where relevant
+* active shares
+
+Gate:
+
+deletion tests pass.
+
+⸻
+
+PHASE 17 — SECURITY AUDIT
+
+Review:
+
+* auth
+* RLS
+* storage
+* service-role use
+* tokens
+* logs
+* public routes
+* uploads
+* dependency exposure
+* server/client boundaries
+
+Fix critical/high findings.
+
+⸻
+
+PHASE 18 — FULL E2E
+
+Run complete flow.
+
+Resolve integration failures.
+
+⸻
+
+PHASE 19 — DOCUMENTATION
+
+Complete:
+
+README.md
+architecture.md
+security.md
+data-model.md
+processing-pipeline.md
+operations.md
+
+⸻
+
+PHASE 20 — RELEASE AUDIT
+
+Run:
+
+install verification
+lint
+typecheck
+unit tests
+integration tests
+Python tests
+build
+E2E
+migration checks
+security tests
+
+Produce final report.
+
+⸻
+
+AW. PHASE CHECKPOINT FORMAT
+
+After every phase output:
+
+PHASE X — <NAME>
+STATUS:
+PASS | PARTIAL | BLOCKED | FAIL
+IMPLEMENTED:
+- ...
+FILES CHANGED:
+- ...
+COMMANDS RUN:
+- ...
+TEST RESULTS:
+- ...
+ISSUES FOUND:
+- ...
+FIXES APPLIED:
+- ...
+REMAINING LIMITATIONS:
+- ...
+NEXT PHASE:
+...
+
+A phase with failing critical tests is not PASS.
+
+⸻
+
+AX. BUG-FIXING PROTOCOL
+
+When a command fails:
+
+1. capture exact error
+2. determine subsystem
+3. inspect relevant source
+4. identify root cause
+5. implement smallest correct fix
+6. rerun targeted test
+7. rerun broader gate if necessary
+
+Do not:
+
+* randomly install packages
+* weaken types
+* disable tests
+* bypass RLS
+* comment out failing functionality
+* replace real code with mocks
+
+to obtain green builds.
+
+⸻
+
+AY. TYPE SAFETY CONTRACT
+
+Use:
+
+"strict": true
+
+No casual:
+
+any
+
+No arbitrary:
+
+as unknown as Something
+
+unless there is a documented boundary reason.
+
+Provider output must pass runtime validation.
+
+Generated Supabase types should be authoritative for DB entities.
+
+⸻
+
+AZ. CLIENT/SERVER SECURITY
+
+Never import server-only modules into Client Components.
+
+Create clear modules:
+
+server/
+client/
+shared/
+
+Secrets only under server runtime.
+
+Never expose:
+
+SUPABASE_SERVICE_ROLE_KEY
+DOCUMENT_PROCESSOR_SECRET
+
+to browser bundles.
+
+⸻
+
+BA. MEDICAL SAFETY LANGUAGE
+
+The interface may explain stored information.
+
+It should communicate:
+
+* extracted information can contain OCR mistakes
+* users should verify important medical information
+* MedMemory does not replace healthcare professionals
+
+Do not litter every screen with legal disclaimers.
+
+Use concise safety framing where medically relevant.
+
+⸻
+
+BB. PRIVACY DESIGN
+
+Sensitive data should be minimized.
+
+Never send full medical records to third parties by default.
+
+Cloud integrations must be opt-in if added later.
+
+Local processing should remain the default architecture.
+
+⸻
+
+BC. PRODUCT CONSTRAINTS
+
+Do NOT add during MVP:
+
+* insurance billing
+* hospital ERP
+* appointments
+* pharmacy commerce
+* clinician diagnosis
+* medical chatbot trained to prescribe
+* blockchain
+* cryptocurrency
+* social feed
+* unnecessary wearable integration
+* complex organization/tenant administration
+
+Build the core record-memory product exceptionally well first.
+
+⸻
+
+BD. PERFORMANCE TARGETS
+
+Avoid:
+
+* repeated auth.getUser() requests in one navigation path
+* N+1 Supabase queries
+* selecting * everywhere
+* loading complete OCR documents for dashboard cards
+* forcing Client Components unnecessarily
+
+Use:
+
+* targeted selects
+* pagination
+* server fetching
+* caching only where safe
+* indexes
+
+Medical data correctness and access control are more important than aggressive caching.
+
+⸻
+
+BE. DATABASE QUERY DISCIPLINE
+
+Every database query should be reviewed for:
+
+* ownership
+* selected columns
+* expected cardinality
+* error handling
+* nullable assumptions
+
+Never call:
+
+.single()
+
+when zero rows is a normal scenario.
+
+Use appropriate maybeSingle() or explicit handling.
+
+⸻
+
+BF. DATABASE MIGRATION ANTI-DRIFT RULE
+
+Before writing code that references a database field:
+
+1. verify it exists in migration/schema
+2. ensure generated type includes it
+
+Do not invent fields in UI code first and “fix DB later.”
+
+⸻
+
+BG. BACKGROUND JOB RELIABILITY
+
+Job worker must account for crashes.
+
+A job stuck in processing should be recoverable.
+
+Use locking timestamps.
+
+Example:
+
+If processing lock is older than a safe threshold, job can be returned to queue depending on attempt policy.
+
+Document behavior.
+
+⸻
+
+BH. EXTRACTION VERSIONING
+
+Store enough metadata to identify extraction implementation.
+
+Examples:
+
+ocr_provider
+ocr_version
+extraction_provider
+extraction_version
+
+This allows future reprocessing.
+
+Do not make historical extraction impossible to reason about.
+
+⸻
+
+BI. REPROCESSING
+
+Add a safe reprocess action.
+
+Flow:
+
+failed / completed / needs_review
+→ explicit reprocessing request
+→ new job
+
+Do not destroy user corrections by default.
+
+Automatic extraction candidates and user-approved/corrected values must be distinguishable.
+
+⸻
+
+BJ. DATA TRUST LEVELS
+
+Use a clear conceptual hierarchy:
+
+RAW DOCUMENT
+↓
+OCR TEXT
+↓
+AUTO-EXTRACTED CANDIDATE
+↓
+USER-REVIEWED MEDICAL FACT
+
+Do not treat all four as equally authoritative.
+
+UI and database should preserve this distinction.
+
+⸻
+
+BK. SOURCE OF TRUTH
+
+The original uploaded document is the immutable source of truth.
+
+Normalized documents are derivatives.
+
+OCR is derived data.
+
+Structured facts are derived data.
+
+User corrections may override derived structured representation, but never modify the original document.
+
+⸻
+
+BL. CLEAN ARCHITECTURE BOUNDARIES
+
+Do not create one massive utils.ts.
+
+Organize business logic by domain.
+
+Examples:
+
+documents/
+processing/
+medical-records/
+sharing/
+qa/
+emergency/
+audit/
+
+Keep domain services separate from React UI.
+
+⸻
+
+BM. README QUICKSTART
+
+README must support a clean developer flow.
+
+Expected structure:
+
+Prerequisites
+Environment
+Supabase Setup
+Tesseract Setup
+Ollama Setup
+Install
+Run Web
+Run Processor
+Run Worker
+Test
+Production Build
+
+Commands must match actual repository scripts.
+
+⸻
+
+BN. DOCKER
+
+Optional.
+
+Only add Docker if it genuinely simplifies local document-processor setup.
+
+Do not force the entire development environment into Docker if it creates additional friction.
+
+⸻
+
+BO. INITIAL UI REQUIREMENT
+
+Do not spend excessive time polishing UI before the data pipeline works.
+
+Priority:
+
+1. functioning secure backend
+2. reliable document processing
+3. provenance
+4. review flow
+5. search/QA
+6. polished UI
+
+⸻
+
+BP. FIXTURE ACCEPTANCE CASE
+
+Create at least one synthetic CBC report containing recognizable fields such as:
+
+Haemoglobin
+Total WBC Count
+Platelet Count
+RBC Count
+Hematocrit
+MCV
+MCH
+MCHC
+
+Expected behavior:
+
+* document stored
+* text extracted
+* available values parsed
+* units preserved
+* no missing value invented
+* source blocks retained
+* user can review
+* search finds test name
+* Ask MedMemory can retrieve approved value
+
+⸻
+
+BQ. NO-EVIDENCE ACCEPTANCE CASE
+
+With no relevant stored record:
+
+Question:
+
+Do I have kidney disease?
+
+MedMemory must NOT answer:
+
+Yes
+
+or
+
+No
+
+unless actual records support such a documented diagnosis.
+
+Respond along the lines of:
+
+I couldn't find stored records that establish that diagnosis.
+
+It may surface relevant existing kidney-related labs if present.
+
+⸻
+
+BR. PREVIOUS FAILURE DEFENSES
+
+Explicitly test against these historical failure classes:
+
+1.
+
+Code references DB columns that migrations do not contain.
+
+Defense:
+generated DB types + typecheck + migration audit.
+
+2.
+
+Upload succeeds but processing trigger fails silently.
+
+Defense:
+persist processing job transactionally and expose job state.
+
+3.
+
+Cloud AI key unexpectedly required.
+
+Defense:
+cloud providers absent from default dependency path.
+
+4.
+
+Fallback returns fake diagnosis/demo data.
+
+Defense:
+test no-evidence flows and ban fixture imports from production.
+
+5.
+
+OCR finds incomplete values and extraction invents remainder.
+
+Defense:
+provenance requirement + extraction validation.
+
+6.
+
+Provider label says local OCR while another implementation executed.
+
+Defense:
+provider metadata comes from runtime provider result, not hardcoded UI string.
+
+7.
+
+Document status says complete despite downstream persistence failure.
+
+Defense:
+explicit state machine and transactional persistence.
+
+8.
+
+RLS missing on one new medical child table.
+
+Defense:
+security test enumerates protected tables.
+
+9.
+
+Reprocessing duplicates results.
+
+Defense:
+fingerprints + uniqueness + reprocess tests.
+
+10.
+
+Source references lost after structured normalization.
+
+Defense:
+provenance fields mandatory and acceptance test.
+
+⸻
+
+BS. SECURITY AUDIT CHECKLIST
+
+Before release verify:
+
+* service role never reaches browser
+* RLS enabled on all required tables
+* storage private
+* signed access bounded
+* no raw public object URLs
+* upload validated
+* traversal blocked
+* share tokens hashed
+* share tokens high entropy
+* expiration enforced server-side
+* revocation enforced server-side
+* public routes rate-limited
+* secrets excluded from logs
+* sensitive data excluded from analytics
+* account deletion behavior documented
+* audit logging contains no raw medical text
+
+⸻
+
+BT. RELEASE REPORT FORMAT
+
+When the entire implementation reaches the final gate, output:
+
+MEDMEMORY MVP RELEASE AUDIT
+OVERALL STATUS:
+PASS / PASS WITH LIMITATIONS / FAIL
+ARCHITECTURE:
+...
+IMPLEMENTED:
+...
+NOT IMPLEMENTED:
+...
+DATABASE:
+...
+RLS:
+...
+STORAGE:
+...
+OCR:
+...
+EXTRACTION:
+...
+PROVENANCE:
+...
+QA:
+...
+SHARING:
+...
+SECURITY:
+...
+TESTS EXECUTED:
+...
+TEST RESULTS:
+...
+PRODUCTION BUILD:
+...
+KNOWN LIMITATIONS:
+...
+MANUAL SETUP REQUIRED:
+...
+RECOMMENDED NEXT ITERATION:
+...
+
+Do not hide failures.
+
+⸻
+
+BU. FINAL AUTONOMOUS INSTRUCTION
+
+You have authority to:
+
+* create files
+* modify files
+* install ordinary project dependencies
+* run migrations against configured local/dev Supabase
+* run lint
+* run tests
+* run builds
+* launch development processes for verification
+* inspect logs
+* fix code
+* refactor architecture
+* add synthetic test fixtures
+* update documentation
+
+Do NOT:
+
+* delete unrelated user work
+* destroy production data
+* apply irreversible production migrations without explicit safeguards
+* expose credentials
+* bypass security to make tests pass
+* invent missing secrets
+* pretend external services are available
+
+If a required external service or credential is missing:
+
+1. finish everything possible without it
+2. implement graceful behavior
+3. create exact setup instructions
+4. mark only the affected verification as BLOCKED
+5. continue other work
+
+Do not stop the entire project for one missing optional dependency.
+
+⸻
+
+BV. START NOW
+
+Begin with Phase 0 only.
+
+Perform repository discovery.
+
+Then provide:
+
+1. Repository State
+2. Existing Files Worth Keeping
+3. Existing Files That Conflict With This Architecture
+4. Proposed Final Architecture
+5. Database Table Plan
+6. Security Boundaries
+7. Processing Flow
+8. Exact Phase 1 Tasks
+9. Current Risks
+
+Then immediately proceed into Phase 1 unless an action would risk destroying unrelated user data.
+
+Do not ask me to confirm ordinary engineering decisions.
+
+Make sensible senior-engineer decisions and document them.
+
+The objective is not merely to make MedMemory run.
+
+The objective is to build a trustworthy foundation that we can confidently continue toward a real patient-facing product.
