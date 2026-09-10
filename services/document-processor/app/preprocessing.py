@@ -12,6 +12,7 @@ class PreprocessedImage:
     original: Image.Image
     normalized: np.ndarray
     operations: list[str]
+    skew_angle: float
 
 
 def _deskew(gray: np.ndarray) -> tuple[np.ndarray, float]:
@@ -54,4 +55,9 @@ def preprocess_image(image: Image.Image) -> PreprocessedImage:
     if angle:
         operations.append("deskew")
 
-    return PreprocessedImage(original=original, normalized=corrected, operations=operations)
+    return PreprocessedImage(
+        original=original,
+        normalized=corrected,
+        operations=operations,
+        skew_angle=angle,
+    )

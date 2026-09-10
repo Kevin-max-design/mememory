@@ -46,6 +46,19 @@ analysis endpoint accepts a UUID, declared MIME type, base64 file payload, and b
 options. It returns page text, blocks, confidence and bounding boxes without database
 access. Health indicates service startup, not OCR readiness.
 
+## Run document worker
+
+Start the processor first, then run the database-backed worker from the repository root:
+
+```sh
+npm run worker:documents
+```
+
+Use `npm run worker:documents -- --once` to claim at most one job. The worker verifies
+the stored file size and SHA-256 before processing, renews its claim during long OCR,
+and persists pages and blocks through service-role-only transactional database functions.
+It never logs document content or credentials.
+
 ## Test and build
 
 ```sh

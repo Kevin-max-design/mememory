@@ -843,7 +843,45 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_document_processing_job: {
+        Args: { p_job_id?: string | null; p_lock_timeout_seconds?: number }
+        Returns: {
+          attempt_count: number
+          document_id: string
+          file_size: number
+          job_id: string
+          lock_token: string
+          max_attempts: number
+          mime_type: string
+          sha256: string
+          storage_path: string
+          user_id: string
+        }[]
+      }
+      complete_document_processing_job: {
+        Args: {
+          p_job_id: string
+          p_lock_token: string
+          p_ocr_provider?: string | null
+          p_ocr_version?: string | null
+          p_pages: Json
+        }
+        Returns: boolean
+      }
+      fail_document_processing_job: {
+        Args: {
+          p_error_code: string
+          p_error_message: string
+          p_job_id: string
+          p_lock_token: string
+          p_retryable: boolean
+        }
+        Returns: string
+      }
+      renew_document_processing_job: {
+        Args: { p_job_id: string; p_lock_token: string }
+        Returns: boolean
+      }
     }
     Enums: {
       document_status:

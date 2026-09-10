@@ -48,6 +48,7 @@ class PageAnalysis(BaseModel):
     width: int = Field(gt=0)
     height: int = Field(gt=0)
     rotation: int
+    skew_angle: float = Field(ge=-12, le=12)
     source: Literal["native_pdf", "ocr"]
     full_text: str
     blocks: list[TextBlock]
