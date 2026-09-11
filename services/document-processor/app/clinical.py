@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any, ClassVar, Protocol
+from typing import Any, ClassVar, Literal, Protocol
 from uuid import UUID
 
 from app.schemas import BrainCandidate, ClinicalBrainMetadata, PageAnalysis
@@ -42,6 +42,52 @@ LABELS = ["diagnosis", "medication", "allergy", "procedure", "clinical finding"]
 DEFAULT_OPENMED_MODEL = "urchade/gliner_large_bio-v0.1"
 DEFAULT_OPENMED_TOKENIZER = "microsoft/deberta-v3-large"
 
+SectionType = Literal[
+    "diagnosis", "impression", "conclusion", "assessment", "history",
+    "medication", "allergy", "procedure", "finding", "unknown",
+]
+
+SECTION_ALIASES: dict[str, SectionType] = {
+    "diagnosis": "diagnosis", "final diagnosis": "diagnosis",
+    "impression": "impression", "clinical impression": "impression",
+    "conclusion": "conclusion", "assessment": "assessment",
+    "past history": "history", "past medical history": "history",
+    "history": "history", "known case of": "history",
+    "medication": "medication", "medications": "medication",
+    "prescription": "medication", "rx": "medication",
+    "allergy": "allergy", "allergies": "allergy",
+    "procedure": "procedure", "procedures": "procedure",
+    "2d echo": "procedure", "2d echo cardiogram": "procedure",
+    "echocardiogram": "procedure", "ultrasound": "procedure", "usg": "procedure",
+    "findings": "finding", "report": "finding", "observations": "finding",
+}
+STRUCTURAL_BOUNDARY = re.compile(
+    r"^(?:laboratory results?|lab results?|investigations?|reference ranges?|"
+    r"patient details?|demographics?|billing|address|contact)(?:\s*:)?$", re.IGNORECASE
+)
+LAB_ROW = re.compile(
+    r"^(?:ha?emoglobin|hgb|hb|platelets?|plt|wbc|rbc|creatinine|hba1c|tsh|ldl|"
+    r"triglycerides?|glucose|bilirubin|albumin)\b.*\d", re.IGNORECASE
+)
+
+
+@dataclass(frozen=True, slots=True)
+class SectionContext:
+    section_type: SectionType
+    heading_block_id: str
+    distance: int
+
+
+def classify_section_heading(text: str) -> SectionType | None:
+    """Classify only short, known heading labels; never infer headings from prose."""
+    normalized = re.sub(r"\s+", " ", text.strip().rstrip(":")).casefold()
+    normalized = re.sub(r"[^a-z0-9 /-]", "", normalized).strip()
+    if not normalized or len(normalized) > 32 or len(normalized.split()) > 4:
+        return None
+    if LAB_ROW.match(normalized) or re.search(r"\d", normalized) and normalized not in {"2d echo", "2d echo cardiogram"}:
+        return None
+    return SECTION_ALIASES.get(normalized)
+
 
 def local_model_available(model_id: str = DEFAULT_OPENMED_MODEL) -> bool:
     """Check the Hugging Face cache without network access or model initialization."""
@@ -49,7 +95,6 @@ def local_model_available(model_id: str = DEFAULT_OPENMED_MODEL) -> bool:
         from huggingface_hub import snapshot_download
 
         snapshot_download(model_id, local_files_only=True)
-        snapshot_download(DEFAULT_OPENMED_TOKENIZER, local_files_only=True)
         return True
     except (ImportError, OSError, RuntimeError, ValueError):
         return False
@@ -171,6 +216,7 @@ class OpenMedClinicalNlpProvider:
         parse_sig: Any,
         context: Any,
         rejected: dict[str, int],
+        section: SectionContext | None = None,
     ):
         start, end = self._get(entity, "start"), self._get(entity, "end")
         label, score = str(self._get(entity, "label", "")).lower(), self._get(entity, "score")
@@ -181,7 +227,7 @@ class OpenMedClinicalNlpProvider:
             or end <= start
             or end > len(text)
         ):
-            self._reject(rejected, "no_provenance")
+            self._reject(rejected, "missing_source_span")
             return None
         surface = text[start:end]
         if surface != str(self._get(entity, "text", surface)):
@@ -197,9 +243,20 @@ class OpenMedClinicalNlpProvider:
             return None
         assertion = context({"text": clean, "context": text, "start": start, "end": end})
         if assertion.negation == "negated":
-            self._reject(rejected, "negated")
+            self._reject(
+                rejected,
+                "allergy_negated" if label == "allergy" else "negated",
+            )
+            return None
+        if assertion.certainty != "certain":
+            self._reject(rejected, "uncertain")
             return None
         numeric_score = float(score) if isinstance(score, (int, float)) else 0.0
+        effective_temporality = (
+            "historical"
+            if section and section.section_type == "history"
+            else assertion.temporality
+        )
         common = {
             "source_page_number": page,
             "source_block_ids": [block],
@@ -214,30 +271,39 @@ class OpenMedClinicalNlpProvider:
             "model_confidence": numeric_score,
             "assertion": {
                 "negation": assertion.negation,
-                "temporality": assertion.temporality,
+                "temporality": effective_temporality,
                 "certainty": assertion.certainty,
+                "section_type": section.section_type if section else "unknown",
+                "section_heading_block_id": section.heading_block_id if section else "",
+                "section_distance": str(section.distance) if section else "",
             },
             "confidence": "high" if numeric_score >= 0.8 else "medium",
         }
         match = DIAGNOSIS.match(text)
         if label in {"diagnosis", "disease", "condition", "problem"}:
-            if not match or assertion.certainty != "certain":
-                self._reject(rejected, "no_context")
+            allowed = {"diagnosis", "impression", "assessment", "conclusion", "history"}
+            if not match and (not section or section.section_type not in allowed):
+                self._reject(rejected, "no_section_context")
                 return None
+            if section and section.section_type not in allowed and not match:
+                self._reject(rejected, "section_category_mismatch")
+                return None
+            name = match[1].strip(" .") if match else clean
             return BrainCandidate(
                 record_type="diagnosis",
                 data={
-                    "name": match[1].strip(" ."),
+                    "name": name,
                     "code": None,
                     "diagnosed_at": None,
-                    "status": assertion.temporality,
+                    "status": effective_temporality,
                 },
                 **common,
             )
         match = MEDICATION.match(text)
         if label in {"medication", "drug", "treatment"}:
             body = match[1] if match else text
-            if not match:
+            medication_section = bool(section and section.section_type == "medication")
+            if not match and not medication_section:
                 explicit_dose = re.search(
                     r"\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|units?|iu)\b",
                     text,
@@ -251,11 +317,14 @@ class OpenMedClinicalNlpProvider:
                 )
                 entity_starts_line = start == 0
                 if not (explicit_dose and explicit_frequency and entity_starts_line):
-                    self._reject(rejected, "no_context")
+                    self._reject(rejected, "medication_without_context")
                     return None
+            if LAB_ROW.match(text):
+                self._reject(rejected, "section_category_mismatch")
+                return None
             name = re.match(r"([A-Za-z][A-Za-z .'-]*?)(?=\s+\d|$)", body)
             if not name:
-                self._reject(rejected, "no_context")
+                self._reject(rejected, "medication_without_context")
                 return None
             sig = parse_sig(body)
             return BrainCandidate(
@@ -274,22 +343,24 @@ class OpenMedClinicalNlpProvider:
                     "end_date": None,
                     "status": "discontinued"
                     if re.search(r"\b(?:stopped|discontinued)\b", text, re.IGNORECASE)
-                    else assertion.temporality,
+                    else effective_temporality,
                 },
                 **common,
             )
         match = ALLERGY.match(text)
         if label == "allergy":
             if NEGATIVE_ALLERGY.search(text):
-                self._reject(rejected, "negated")
+                self._reject(rejected, "allergy_negated")
                 return None
-            if not match:
-                self._reject(rejected, "no_context")
+            allergy_section = bool(section and section.section_type == "allergy")
+            if not match and not allergy_section:
+                self._reject(rejected, "no_section_context")
                 return None
+            allergen = match[1].strip(" .") if match else clean
             return BrainCandidate(
                 record_type="allergy",
                 data={
-                    "allergen": match[1].strip(" ."),
+                    "allergen": allergen,
                     "reaction": None,
                     "severity": None,
                     "status": "active",
@@ -298,10 +369,11 @@ class OpenMedClinicalNlpProvider:
             )
         match = PROCEDURE.match(text)
         if label in {"procedure", "test"}:
+            procedure_section = bool(section and section.section_type == "procedure")
             if not match and not re.search(
                 r"\b(?:performed|underwent|completed)\b", text, re.IGNORECASE
-            ):
-                self._reject(rejected, "no_context")
+            ) and not (procedure_section and section and section.distance > 0):
+                self._reject(rejected, "procedure_without_evidence")
                 return None
             return BrainCandidate(
                 record_type="procedure",
@@ -315,22 +387,27 @@ class OpenMedClinicalNlpProvider:
         if label in {"clinical finding", "finding"}:
             diagnosis = DIAGNOSIS.match(text)
             if diagnosis:
-                if assertion.certainty != "certain":
-                    self._reject(rejected, "no_context")
-                    return None
                 return BrainCandidate(
                     record_type="diagnosis",
                     data={
                         "name": diagnosis[1].strip(" ."),
                         "code": None,
                         "diagnosed_at": None,
-                        "status": assertion.temporality,
+                        "status": effective_temporality,
                     },
                     **common,
                 )
             if re.search(r"\bLVEF\s+\d+(?:\.\d+)?%", text, re.IGNORECASE):
                 return BrainCandidate(record_type="doctor_note", data={"text": text}, **common)
-        self._reject(rejected, "unsupported_category" if label not in LABELS else "no_context")
+            finding_sections = {"impression", "conclusion", "assessment", "finding", "procedure"}
+            if section and section.section_type in finding_sections:
+                return BrainCandidate(record_type="doctor_note", data={"text": text}, **common)
+            self._reject(rejected, "finding_without_context")
+            return None
+        self._reject(
+            rejected,
+            "unsupported_category" if label not in LABELS else "section_category_mismatch",
+        )
         return None
 
     def analyze(self, document_id: UUID, pages: list[PageAnalysis]) -> ClinicalBrainResult:
@@ -338,21 +415,44 @@ class OpenMedClinicalNlpProvider:
         normalize, parse_number, parse_sig, context, split = self._imports()
         accepted, rejected, before, model_invoked = [], {}, 0, False
         raw_categories: dict[str, int] = {}
+        section_headings: dict[str, int] = {}
+        proposals_with_section = 0
         ner_blocks_evaluated = 0
         for page in pages:
-            for block in page.blocks:
+            active_section: SectionContext | None = None
+            previous_y1: float | None = None
+            for block in sorted(page.blocks, key=lambda item: (item.bbox.y0, item.bbox.x0)):
                 if block.region != "main_content":
                     self._reject(rejected, "likely_header_footer")
+                    active_section = None
+                    previous_y1 = None
                     continue
+                # Imaging reports often leave large whitespace between a section label and
+                # its first finding. Only a major page break is strong enough to clear the
+                # section; explicit headings and non-content regions remain the primary guards.
+                if previous_y1 is not None and block.bbox.y0 - previous_y1 > page.height * 0.30:
+                    active_section = None
+                previous_y1 = max(previous_y1 or block.bbox.y1, block.bbox.y1)
                 if block.text.strip():
                     ner_blocks_evaluated += 1
                 for raw in block.text.splitlines():
                     line = raw.strip()
                     if not line:
                         continue
+                    heading = classify_section_heading(line)
+                    if heading:
+                        active_section = SectionContext(heading, block.id, 0)
+                        section_headings[heading] = section_headings.get(heading, 0) + 1
+                        continue
+                    if STRUCTURAL_BOUNDARY.fullmatch(line):
+                        active_section = None
+                        continue
+                    section = active_section
                     entities = self._predict(line)
                     model_invoked |= bool(self.model_id or self.predict_override)
                     before += len(entities)
+                    if section:
+                        proposals_with_section += len(entities)
                     for entity in entities:
                         label = str(self._get(entity, "label", "")).lower()
                         category = {
@@ -382,9 +482,16 @@ class OpenMedClinicalNlpProvider:
                                 parse_sig,
                                 context,
                                 rejected,
+                                section,
                             )
                         )
                     )
+                    if active_section:
+                        active_section = SectionContext(
+                            active_section.section_type,
+                            active_section.heading_block_id,
+                            active_section.distance + 1,
+                        )
                     match = next(((p.match(line), name) for p, name in LABS if p.match(line)), None)
                     if not match:
                         continue
@@ -440,6 +547,8 @@ class OpenMedClinicalNlpProvider:
             raw_proposals_by_category=raw_categories,
             accepted_by_category=accepted_categories,
             ner_blocks_evaluated=ner_blocks_evaluated,
+            section_headings_detected=section_headings,
+            proposals_with_section_context=proposals_with_section,
         )
         return ClinicalBrainResult(tuple(accepted), metadata)
 

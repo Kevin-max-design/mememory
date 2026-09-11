@@ -76,6 +76,8 @@ export const processorResponseSchema = z
         rejected_reasons: z.record(z.string(), z.number().int().nonnegative()),
         raw_proposals_by_category: z.record(z.string(), z.number().int().nonnegative()).optional(),
         accepted_by_category: z.record(z.string(), z.number().int().nonnegative()).optional(),
+        section_headings_detected: z.record(z.string(), z.number().int().nonnegative()).optional(),
+        proposals_with_section_context: z.number().int().nonnegative().optional(),
         ner_blocks_evaluated: z.number().int().nonnegative().optional(),
       }).optional(),
       clinical_candidates: z.array(z.object({

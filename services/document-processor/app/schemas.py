@@ -95,6 +95,8 @@ class ClinicalBrainMetadata(BaseModel):
     raw_proposals_by_category: dict[str, int] = Field(default_factory=dict)
     accepted_by_category: dict[str, int] = Field(default_factory=dict)
     ner_blocks_evaluated: int = 0
+    section_headings_detected: dict[str, int] = Field(default_factory=dict)
+    proposals_with_section_context: int = 0
 
 
 class DocumentAnalysis(BaseModel):

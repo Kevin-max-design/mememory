@@ -157,17 +157,22 @@ def run_benchmark(path: Path, providers=None) -> int:
                 f"clinical_page={page.page_number} blocks={len(page.blocks)} "
                 f"ner_blocks_evaluated={page_brain.metadata.ner_blocks_evaluated} "
                 f"raw_proposals={page_brain.metadata.candidates_before_validation} "
-                f"accepted={page_brain.metadata.candidates_after_validation} rejected={reasons}",
+                f"accepted={page_brain.metadata.candidates_after_validation} "
+                f"section_headings_detected={sum(page_brain.metadata.section_headings_detected.values())} "
+                f"proposals_with_section_context={page_brain.metadata.proposals_with_section_context} "
+                f"rejected={reasons}",
                 flush=True,
             )
         candidates = [candidate for brain in brains for candidate in brain.candidates]
         raw_categories = Counter()
         accepted_categories = Counter()
         rejected_categories = Counter()
+        sections = Counter()
         for brain in brains:
             raw_categories.update(brain.metadata.raw_proposals_by_category)
             accepted_categories.update(brain.metadata.accepted_by_category)
             rejected_categories.update(brain.metadata.rejected_reasons)
+            sections.update(brain.metadata.section_headings_detected)
         model_backed = any(brain.metadata.model_backed for brain in brains)
         openmed_keys = {
             (candidate.source_page_number, candidate.source_block_ids[0], candidate.record_type)
@@ -188,6 +193,11 @@ def run_benchmark(path: Path, providers=None) -> int:
             ",".join(f"{name}:{count}" for name, count in sorted(rejected_categories.items()))
             or "none"
         )
+        section_names = (
+            "diagnosis", "impression", "conclusion", "assessment", "history",
+            "medication", "allergy", "procedure", "finding",
+        )
+        detected = ",".join(f"{name}:{sections[name]}" for name in section_names)
         print(
             "clinical_benchmark "
             f"openmed_invoked={str(bool(brains)).lower()} "
@@ -196,6 +206,8 @@ def run_benchmark(path: Path, providers=None) -> int:
             f"openmed_candidates_before_validation={sum(b.metadata.candidates_before_validation for b in brains)} "
             f"openmed_candidates_after_validation={len(candidates)} "
             f"openmed_raw_by_category={raw} openmed_accepted_by_category={accepted} "
+            f"sections_detected={detected} "
+            f"proposals_with_section_context={sum(b.metadata.proposals_with_section_context for b in brains)} "
             f"deterministic_candidates={deterministic_count} "
             f"deterministic_fallback_additions={fallback_additions} "
             f"composite_final_candidates={composite_count} "

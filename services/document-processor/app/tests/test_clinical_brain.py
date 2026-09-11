@@ -112,7 +112,7 @@ def test_model_entities_keep_offsets_and_openmed_assertion_context():
         diagnoses[0].source_text[diagnoses[0].source_start : diagnoses[0].source_end]
         == diagnoses[0].entity_text
     )
-    assert result.metadata.rejected_reasons["no_context"] >= 1
+    assert result.metadata.rejected_reasons["uncertain"] >= 1
     assert result.metadata.rejected_reasons["negated"] >= 1
 
 
@@ -151,8 +151,9 @@ def test_medication_allergy_procedure_and_finding_are_context_gated():
     assert by_type["procedure"][0].data["procedure_name"] == "2D Echo Cardiogram"
     assert by_type["doctor_note"][0].data["text"] == "LVEF 62%"
     assert len(by_type["allergy"]) == 1
-    assert result.metadata.rejected_reasons["no_context"] >= 1
-    assert result.metadata.rejected_reasons["negated"] >= 2
+    assert result.metadata.rejected_reasons["medication_without_context"] >= 1
+    assert result.metadata.rejected_reasons["allergy_negated"] >= 1
+    assert result.metadata.rejected_reasons["negated"] >= 1
 
 
 def test_model_medication_label_on_lab_row_is_rejected_without_sig_context():
@@ -163,4 +164,101 @@ def test_model_medication_label_on_lab_row_is_rejected_without_sig_context():
     )
     medications = [item for item in result.candidates if item.record_type == "medication"]
     assert medications == []
-    assert result.metadata.rejected_reasons["no_context"] == 1
+    assert result.metadata.rejected_reasons["medication_without_context"] == 1
+
+
+def test_impression_and_conclusion_sections_propagate_without_weakening_negation():
+    predict = entity_predictor(
+        {
+            "Grade-II fatty liver": "diagnosis",
+            "Grade-I prostatomegaly": "diagnosis",
+            "Simple left renal cortical cyst": "diagnosis",
+            "Normal LV/RV systolic function": "clinical finding",
+            "LVEF 62%": "clinical finding",
+            "RWMA": "clinical finding",
+        }
+    )
+    page = page_with(
+        ("ih", "IMPRESSION:"),
+        ("i1", "Grade-II fatty liver."),
+        ("i2", "Grade-I prostatomegaly."),
+        ("i3", "Simple left renal cortical cyst."),
+        ("ch", "CONCLUSION:"),
+        ("c1", "Normal LV/RV systolic function."),
+        ("c2", "LVEF 62%."),
+        ("c3", "No RWMA."),
+    )
+    result = OpenMedClinicalNlpProvider(model_id="synthetic", predict=predict).analyze(
+        uuid4(), [page]
+    )
+    diagnoses = [item for item in result.candidates if item.record_type == "diagnosis"]
+    findings = [item for item in result.candidates if item.record_type == "doctor_note"]
+    assert [item.data["name"] for item in diagnoses] == [
+        "Grade-II fatty liver",
+        "Grade-I prostatomegaly",
+        "Simple left renal cortical cyst",
+    ]
+    assert len(findings) == 2
+    assert result.metadata.rejected_reasons["negated"] == 1
+    assert result.metadata.section_headings_detected == {"impression": 1, "conclusion": 1}
+    assert result.metadata.proposals_with_section_context == 6
+
+
+def test_history_medication_and_allergy_sections_preserve_safe_context():
+    predict = entity_predictor(
+        {
+            "Myocardial infarction": "diagnosis",
+            "Metformin": "medication",
+            "Penicillin": "allergy",
+        }
+    )
+    page = page_with(
+        ("hh", "PAST MEDICAL HISTORY:"),
+        ("h1", "Myocardial infarction in 2020."),
+        ("mh", "MEDICATIONS:"),
+        ("m1", "Metformin 500 mg twice daily."),
+        ("ah", "ALLERGIES:"),
+        ("a1", "Penicillin."),
+        ("a2", "No known drug allergies."),
+    )
+    result = OpenMedClinicalNlpProvider(model_id="synthetic", predict=predict).analyze(
+        uuid4(), [page]
+    )
+    diagnosis = next(item for item in result.candidates if item.record_type == "diagnosis")
+    medication = next(item for item in result.candidates if item.record_type == "medication")
+    allergy = next(item for item in result.candidates if item.record_type == "allergy")
+    assert diagnosis.assertion["temporality"] == "historical"
+    assert medication.data["dose"] == 500.0
+    assert allergy.data["allergen"] == "Penicillin"
+    assert len([item for item in result.candidates if item.record_type == "allergy"]) == 1
+
+
+def test_lab_boundary_resets_impression_context():
+    predict = entity_predictor({"Fatty liver": "diagnosis", "Triglycerides": "diagnosis"})
+    page = page_with(
+        ("ih", "IMPRESSION:"),
+        ("i1", "Fatty liver."),
+        ("lh", "LAB RESULTS:"),
+        ("l1", "Triglycerides 240 mg/dl"),
+    )
+    result = OpenMedClinicalNlpProvider(model_id="synthetic", predict=predict).analyze(
+        uuid4(), [page]
+    )
+    assert [item.data["name"] for item in result.candidates] == ["Fatty liver"]
+    assert result.metadata.rejected_reasons["no_section_context"] == 1
+
+
+def test_major_geometry_break_resets_section_context():
+    predict = entity_predictor({"Fatty liver": "diagnosis", "Hypertension": "diagnosis"})
+    page = page_with(
+        ("ih", "IMPRESSION:"),
+        ("i1", "Fatty liver."),
+        ("u1", "Hypertension."),
+    )
+    page.blocks[2].bbox.y0 = 650
+    page.blocks[2].bbox.y1 = 670
+    result = OpenMedClinicalNlpProvider(model_id="synthetic", predict=predict).analyze(
+        uuid4(), [page]
+    )
+    assert [item.data["name"] for item in result.candidates] == ["Fatty liver"]
+    assert result.metadata.rejected_reasons["no_section_context"] == 1
