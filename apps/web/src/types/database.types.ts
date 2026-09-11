@@ -893,6 +893,15 @@ export type Database = {
         Args: { p_job_id: string; p_lock_token: string }
         Returns: boolean
       }
+      review_medical_record: {
+        Args: {
+          p_action: string
+          p_correction?: Json | null
+          p_document_id: string
+          p_record_id: string
+        }
+        Returns: Database["public"]["Enums"]["document_status"]
+      }
     }
     Enums: {
       document_status:

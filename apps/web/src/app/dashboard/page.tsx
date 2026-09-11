@@ -2,6 +2,7 @@ import { logout } from "@/features/auth/actions";
 import { authErrorMessage } from "@/features/auth/errors";
 import { DocumentUpload } from "@/components/document-upload";
 import { requireUser } from "@/server/auth/require-user";
+import Link from "next/link";
 
 export default async function DashboardPage({
   searchParams,
@@ -62,7 +63,7 @@ export default async function DashboardPage({
         <DocumentUpload />
       </section>
       <section className="mt-8">
-        <h2 className="text-xl font-semibold">Your documents</h2>
+        <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Your documents</h2><Link className="text-sm font-semibold text-teal-700" href="/records">View all records</Link></div>
         {documents?.length ? (
           <ul className="mt-4 space-y-3">
             {documents.map((document) => (
@@ -76,9 +77,7 @@ export default async function DashboardPage({
                     {(document.file_size / 1024).toFixed(1)} KB · {document.mime_type}
                   </p>
                 </div>
-                <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-medium capitalize text-amber-800">
-                  {document.processing_status.replace("_", " ")}
-                </span>
+                <div className="flex items-center gap-2"><span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-medium capitalize text-amber-800">{document.processing_status.replace("_", " ")}</span>{document.processing_status === "needs_review" ? <Link className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" href={`/records/${document.id}/review`}>Review</Link> : null}</div>
               </li>
             ))}
           </ul>
