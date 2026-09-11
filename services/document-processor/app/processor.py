@@ -203,6 +203,7 @@ class DocumentProcessor:
             raise invalid_file_error() from error
 
         classify_document_regions(pages)
+        brain = self.clinical_provider.analyze(request.document_id, pages)
         enhancement = self.clinical_provider.enhance(
             "\n".join(page.full_text for page in pages)
         )
@@ -216,4 +217,6 @@ class DocumentProcessor:
                 version=enhancement.version,
                 preprocessing=[enhancement.status],
             ),
+            clinical_brain=brain.metadata,
+            clinical_candidates=list(brain.candidates),
         )

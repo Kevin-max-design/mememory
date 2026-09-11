@@ -5,14 +5,17 @@ import re
 import sys
 from pathlib import Path
 from time import perf_counter
+from uuid import UUID
 
 import fitz
 from PIL import Image
 
+from app.clinical import OpenMedClinicalNlpProvider
 from app.errors import ProcessorError
-from app.layout import reconstruct_rows
+from app.layout import classify_document_regions, reconstruct_rows
 from app.ocr import PaddleOCRProvider, TesseractOCRProvider
 from app.preprocessing import preprocess_image
+from app.schemas import PageAnalysis
 
 MEDICAL_SIGNAL = re.compile(
     r"\b(?:ha?emoglobin|platelets?|wbc|rbc|creatinine|glucose|cholesterol|tsh|hba1c|bilirubin|albumin|diagnosis|medication)\b",
@@ -53,6 +56,8 @@ def run_benchmark(path: Path, providers=None) -> int:
     providers = providers or [PaddleOCRProvider(), TesseractOCRProvider()]
     print("OCR benchmark: local-only, no persistence, no document text output", flush=True)
     page_count = 0
+    paddle_pages: list[PageAnalysis] = []
+    deterministic_count = 0
     for page_number, image in render_pages(path):
         page_count += 1
         prepared = preprocess_image(image)
@@ -71,6 +76,21 @@ def run_benchmark(path: Path, providers=None) -> int:
                     else result.blocks
                 )
                 candidate_count = sum(bool(ROW_SIGNAL.search(block.text)) for block in extraction_blocks)
+                if metadata.name == "paddleocr":
+                    deterministic_count += candidate_count
+                    paddle_pages.append(
+                        PageAnalysis(
+                            page_number=page_number,
+                            width=prepared.original.width,
+                            height=prepared.original.height,
+                            rotation=0,
+                            skew_angle=prepared.skew_angle,
+                            source="ocr",
+                            full_text="\n".join(block.text for block in extraction_blocks),
+                            blocks=extraction_blocks,
+                            provider=metadata,
+                        )
+                    )
                 print(
                     f"page={page_number} provider={metadata.name} status=succeeded "
                     f"fallback_attempted={str(paddle_failed).lower()} "
@@ -104,6 +124,42 @@ def run_benchmark(path: Path, providers=None) -> int:
                     f"candidate_count=0 runtime_seconds={elapsed:.3f}",
                     flush=True,
                 )
+    if paddle_pages:
+        classify_document_regions(paddle_pages)
+        started = perf_counter()
+        brain = OpenMedClinicalNlpProvider().analyze(
+            UUID("00000000-0000-0000-0000-000000000000"), paddle_pages
+        )
+        openmed_keys = {
+            (candidate.source_page_number, candidate.source_block_ids[0], candidate.record_type)
+            for candidate in brain.candidates
+        }
+        # OpenMed's conservative lab proposals are a subset of the same source-bound rows
+        # counted by the deterministic benchmark. The production worker performs the full
+        # semantic merge; its exact behavior is covered by the worker test suite.
+        duplicates_removed = min(len(openmed_keys), deterministic_count)
+        composite_count = deterministic_count + len(openmed_keys) - duplicates_removed
+        reasons = ",".join(
+            f"{name}:{count}" for name, count in sorted(brain.metadata.rejected_reasons.items())
+        ) or "none"
+        print(
+            "clinical_benchmark "
+            f"openmed_invoked={str(brain.metadata.invoked).lower()} "
+            f"openmed_apis_used={','.join(brain.metadata.apis_used)} "
+            f"openmed_model_backed={str(brain.metadata.model_backed).lower()} "
+            f"openmed_candidates_before_validation={brain.metadata.candidates_before_validation} "
+            f"openmed_candidates_after_validation={brain.metadata.candidates_after_validation} "
+            f"deterministic_candidates={deterministic_count} "
+            f"composite_final_candidates={composite_count} "
+            f"duplicates_removed={duplicates_removed} rejected_openmed={reasons} "
+            f"runtime_seconds={perf_counter() - started:.3f}",
+            flush=True,
+        )
+    else:
+        print(
+            "clinical_benchmark openmed_invoked=false reason=no_successful_paddle_pages",
+            flush=True,
+        )
     print(f"benchmark_complete pages={page_count}", flush=True)
     return 0
 

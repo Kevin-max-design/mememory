@@ -105,6 +105,46 @@ describe("document worker orchestration", () => {
     expect(deps.fail).not.toHaveBeenCalled();
   });
 
+  it("prefers a validated source-bound OpenMed candidate over a deterministic duplicate", async () => {
+    const text = "Creatinine 1.1 mg/dl 0.6-1.3";
+    const response = {
+      ...processorResponse,
+      data: {
+        ...processorResponse.data,
+        pages: [{ ...processorResponse.data.pages[0], full_text: text,
+          blocks: [{ ...processorResponse.data.pages[0].blocks[0], text, region: "main_content" }] }],
+        clinical_brain: { name: "openmed", version: "2.3.0", invoked: true, model_backed: false,
+          apis_used: ["split_measurement_text"], warnings: [], candidates_before_validation: 1,
+          candidates_after_validation: 1, rejected_reasons: {} },
+        clinical_candidates: [{ record_type: "lab", source_page_number: 1,
+          source_block_ids: ["p1-native-0"], source_text: text, confidence: "high",
+          data: { test_name: "Creatinine", original_value: "1.1", numeric_value: 1.1,
+            unit: "mg/dl", reference_range: "0.6-1.3", flag: null, specimen: null, collected_at: null } }],
+      },
+    };
+    const deps = dependencies({ analyze: vi.fn().mockResolvedValue(response) });
+    await new DocumentWorker(deps).runOnce();
+    const payload = vi.mocked(deps.complete).mock.calls[0][1];
+    expect(payload.candidates).toHaveLength(1);
+    expect(payload.candidates[0].extractionMethod).toBe("openmed");
+  });
+
+  it("rejects an OpenMed candidate without source binding and keeps deterministic fallback", async () => {
+    const text = "Creatinine 1.1 mg/dl";
+    const response = { ...processorResponse, data: { ...processorResponse.data,
+      pages: [{ ...processorResponse.data.pages[0], full_text: text,
+        blocks: [{ ...processorResponse.data.pages[0].blocks[0], text, region: "main_content" }] }],
+      clinical_candidates: [{ record_type: "lab", source_page_number: 1,
+        source_block_ids: ["missing"], source_text: text, confidence: "high",
+        data: { test_name: "Creatinine", original_value: "1.1", numeric_value: 1.1, unit: "mg/dl" } }],
+    } };
+    const deps = dependencies({ analyze: vi.fn().mockResolvedValue(response) });
+    await new DocumentWorker(deps).runOnce();
+    const payload = vi.mocked(deps.complete).mock.calls[0][1];
+    expect(payload.candidates).toHaveLength(1);
+    expect(payload.candidates[0].extractionMethod).toBe("deterministic");
+  });
+
   it("requeues retryable provider failures", async () => {
     const failure = new WorkerFailure(
       "PROCESSOR_UNAVAILABLE",

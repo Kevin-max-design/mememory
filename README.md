@@ -34,6 +34,7 @@ page-level diagnostics without document text:
 
 ```sh
 npm run benchmark:ocr -- /absolute/path/to/report.pdf
+npm run benchmark:clinical -- /absolute/path/to/report.pdf
 ```
 
 PaddleOCR model downloads are intentionally manual. When models are absent, the command
@@ -42,6 +43,9 @@ downloaded, set `ENABLE_PADDLEOCR=true` in the processor's ignored local `.env` 
 `ENABLE_OCR_DEBUG=true` enables identifiers and aggregate page diagnostics; it never logs
 OCR text. The processor labels likely page-edge/disclaimer noise for extraction and
 reconstructs PaddleOCR table cells by vertical geometry.
+The clinical command also invokes OpenMed's verified deterministic measurement APIs and
+reports OpenMed, deterministic, validation, deduplication, and composite candidate counts.
+It does not enable model-backed clinical NER or print candidate values or source text.
 
 ## Install
 

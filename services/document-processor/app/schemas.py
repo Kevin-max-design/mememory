@@ -61,6 +61,27 @@ class PageAnalysis(BaseModel):
     provider: ProviderMetadata
 
 
+class BrainCandidate(BaseModel):
+    record_type: Literal["lab", "medication", "diagnosis", "allergy", "vital", "procedure", "doctor_note"]
+    source_page_number: int = Field(ge=1)
+    source_block_ids: list[str] = Field(min_length=1)
+    source_text: str = Field(min_length=1)
+    confidence: Literal["high", "medium", "low"]
+    data: dict[str, str | float | int | None]
+
+
+class ClinicalBrainMetadata(BaseModel):
+    name: str = "none"
+    version: str = "unavailable"
+    invoked: bool = False
+    model_backed: bool = False
+    apis_used: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    candidates_before_validation: int = 0
+    candidates_after_validation: int = 0
+    rejected_reasons: dict[str, int] = Field(default_factory=dict)
+
+
 class DocumentAnalysis(BaseModel):
     document_id: UUID
     mime_type: Literal["application/pdf", "image/jpeg", "image/png", "image/webp"]
@@ -69,6 +90,8 @@ class DocumentAnalysis(BaseModel):
     clinical_provider: ProviderMetadata = Field(
         default_factory=lambda: ProviderMetadata(name="none", version="unavailable")
     )
+    clinical_brain: ClinicalBrainMetadata = Field(default_factory=ClinicalBrainMetadata)
+    clinical_candidates: list[BrainCandidate] = Field(default_factory=list)
 
 
 class AnalyzeResponse(BaseModel):

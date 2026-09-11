@@ -63,6 +63,25 @@ export const processorResponseSchema = z
         version: z.string().max(100),
         preprocessing: z.array(z.string().max(100)).max(20),
       }).passthrough().optional(),
+      clinical_brain: z.object({
+        name: z.string().max(100),
+        version: z.string().max(100),
+        invoked: z.boolean(),
+        model_backed: z.boolean(),
+        apis_used: z.array(z.string().max(100)),
+        warnings: z.array(z.string().max(200)),
+        candidates_before_validation: z.number().int().nonnegative(),
+        candidates_after_validation: z.number().int().nonnegative(),
+        rejected_reasons: z.record(z.string(), z.number().int().nonnegative()),
+      }).optional(),
+      clinical_candidates: z.array(z.object({
+        record_type: z.enum(["lab", "medication", "diagnosis", "allergy", "vital", "procedure", "doctor_note"]),
+        source_page_number: z.number().int().positive(),
+        source_block_ids: z.array(z.string().min(1)).min(1),
+        source_text: z.string().min(1),
+        confidence: z.enum(["high", "medium", "low"]),
+        data: z.record(z.string(), z.union([z.string(), z.number(), z.null()])),
+      })).optional(),
     }),
   })
   .refine((response) => response.data.page_count === response.data.pages.length, {
@@ -148,6 +167,43 @@ export type WorkerResult =
       jobId: string;
     };
 
+function semanticKey(candidate: ExtractionCandidate) {
+  const identity = candidate.recordType === "lab"
+    ? [candidate.data.test_name, candidate.data.original_value, candidate.data.unit]
+    : Object.values(candidate.data).filter((value) => value !== null).slice(0, 3);
+  return JSON.stringify([candidate.recordType, candidate.sourcePageNumber, identity]).toLowerCase();
+}
+
+function openMedCandidates(response: ProcessorResponse, pages: PersistedPage[]) {
+  const sources = new Map<string, { id: string; page: number; text: string; region?: string }>();
+  response.data.pages.forEach((page, pageIndex) => page.blocks.forEach((block, blockIndex) => {
+    sources.set(block.id, { id: pages[pageIndex].blocks[blockIndex].id, page: page.page_number, text: block.text, region: block.region });
+  }));
+  const rejected: Record<string, number> = {};
+  const accepted: ExtractionCandidate[] = [];
+  for (const proposal of response.data.clinical_candidates ?? []) {
+    const bound = proposal.source_block_ids.map((id) => sources.get(id));
+    let reason: string | null = null;
+    if (bound.some((source) => !source)) reason = "no_provenance";
+    else if (bound.some((source) => source?.page !== proposal.source_page_number)) reason = "no_provenance";
+    else if (bound.some((source) => source?.region && source.region !== "main_content")) reason = "likely_header_footer";
+    else if (!bound.some((source) => source?.text.includes(proposal.source_text))) reason = "no_provenance";
+    else if (!/[A-Za-z]{2}/.test(proposal.source_text) || /^[\W_]+$/.test(proposal.source_text)) reason = "garbage_punctuation";
+    else if (proposal.record_type === "lab" && (!proposal.data.test_name || !proposal.data.original_value)) reason = "no_same_row_value";
+    if (reason) { rejected[reason] = (rejected[reason] ?? 0) + 1; continue; }
+    const sourceIds = bound.map((source) => source!.id);
+    const fingerprint = createHash("sha256").update(JSON.stringify([
+      response.data.document_id, proposal.record_type, proposal.source_page_number,
+      proposal.data, proposal.source_text.trim().replace(/\s+/g, " ").toLowerCase(),
+    ])).digest("hex");
+    accepted.push({ recordType: proposal.record_type, eventDate: null, confidence: proposal.confidence,
+      sourceDocumentId: response.data.document_id, sourcePageNumber: proposal.source_page_number,
+      sourceBlockIds: sourceIds, sourceText: proposal.source_text, extractionMethod: "openmed",
+      extractionVersion: response.data.clinical_brain?.version ?? "2.3.0", fingerprint, data: proposal.data });
+  }
+  return { accepted, rejected };
+}
+
 function completionPayload(
   response: ProcessorResponse,
   extractionProvider: ExtractionProvider,
@@ -168,7 +224,7 @@ function completionPayload(
       source_type: page.source,
     })),
   }));
-  const candidates = extractionProvider.extract(
+  const deterministic = extractionProvider.extract(
     response.data.document_id,
     response.data.pages.flatMap((page, pageIndex) =>
       page.blocks.map((block, blockIndex) => ({
@@ -179,6 +235,13 @@ function completionPayload(
       })),
     ),
   );
+  const openmed = openMedCandidates(response, pages);
+  const merged = new Map<string, ExtractionCandidate>();
+  for (const candidate of [...openmed.accepted, ...deterministic]) {
+    const key = semanticKey(candidate);
+    if (!merged.has(key)) merged.set(key, candidate);
+  }
+  const candidates = [...merged.values()];
   if (process.env.ENABLE_OCR_DEBUG === "true") {
     for (const page of response.data.pages) {
       console.info("ocr_extraction_diagnostic", {
@@ -193,6 +256,16 @@ function completionPayload(
         lowConfidenceReason: page.provider.quality_reason ?? null,
       });
     }
+    console.info("clinical_brain_diagnostic", {
+      documentId: response.data.document_id,
+      openMedInvoked: response.data.clinical_brain?.invoked ?? false,
+      openMedBeforeValidation: response.data.clinical_candidates?.length ?? 0,
+      openMedAfterValidation: openmed.accepted.length,
+      deterministicCandidates: deterministic.length,
+      compositeCandidates: candidates.length,
+      duplicatesRemoved: openmed.accepted.length + deterministic.length - candidates.length,
+      rejectedReasons: openmed.rejected,
+    });
   }
   const ocrPage = response.data.pages.find((page) => page.source === "ocr");
   return {

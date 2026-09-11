@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 import numpy as np
 import pytest
 
@@ -34,6 +36,10 @@ class Unavailable:
         del text
         raise RuntimeError("unavailable")
 
+    def analyze(self, document_id, pages):
+        del document_id, pages
+        raise RuntimeError("unavailable")
+
 
 class Fallback:
     def extract(self, image, page_number, preprocessing):
@@ -68,6 +74,15 @@ def test_openmed_verified_unit_api_and_noop_fallback():
     assert result.version == "2.3.0"
     fallback = CompositeClinicalNlpProvider(Unavailable(), NoopClinicalNlpProvider()).enhance("safe")
     assert fallback.status == "disabled"
+
+
+def test_openmed_brain_unavailable_falls_back_without_candidates():
+    result = CompositeClinicalNlpProvider(Unavailable(), NoopClinicalNlpProvider()).analyze(
+        uuid4(), []
+    )
+    assert result.candidates == ()
+    assert result.metadata.invoked is False
+    assert result.metadata.warnings == ["openmed_unavailable_fallback"]
 
 
 @pytest.mark.parametrize(
