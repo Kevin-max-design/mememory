@@ -56,8 +56,10 @@ npm run worker:documents
 
 Use `npm run worker:documents -- --once` to claim at most one job. The worker verifies
 the stored file size and SHA-256 before processing, renews its claim during long OCR,
-and persists pages and blocks through service-role-only transactional database functions.
-It never logs document content or credentials.
+and atomically persists pages, blocks, and deterministic medical-record candidates through
+service-role-only database functions. Candidates retain page/block provenance, stable
+fingerprints, confidence, and `extracted` review status. The worker never logs document
+content or credentials, and user-reviewed records block automatic replacement.
 
 ## Test and build
 

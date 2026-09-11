@@ -172,16 +172,49 @@ export class SupabaseWorkerDependencies implements WorkerDependencies {
 
   async complete(job: ClaimedDocumentJob, payload: CompletionPayload) {
     const { data, error } = await this.supabase.rpc(
-      "complete_document_processing_job",
+      "complete_document_processing_with_extraction",
       {
         p_job_id: job.jobId,
         p_lock_token: job.lockToken,
         p_pages: payload.pages as unknown as Json,
+        p_candidates: payload.candidates.map((candidate) => ({
+          record_type: candidate.recordType,
+          event_date: candidate.eventDate,
+          confidence: { high: 0.95, medium: 0.75, low: 0.5 }[
+            candidate.confidence
+          ],
+          source_document_id: candidate.sourceDocumentId,
+          source_page_number: candidate.sourcePageNumber,
+          source_block_ids: candidate.sourceBlockIds,
+          source_text: candidate.sourceText,
+          extraction_method: candidate.extractionMethod,
+          extraction_version: candidate.extractionVersion,
+          fingerprint: candidate.fingerprint,
+          data: candidate.data,
+        })) as unknown as Json,
         p_ocr_provider: payload.ocrProvider,
         p_ocr_version: payload.ocrVersion,
       },
     );
-    if (error || data !== true) throw new CompletionUncertainError();
+    if (error) {
+      const knownCode = [
+        "EXTRACTION_INVALID_OUTPUT",
+        "EXTRACTION_PROVENANCE_MISSING",
+        "EXTRACTION_PROTECTED_RECORDS_EXIST",
+      ].find((code) => error.message.includes(code));
+      throw new WorkerFailure(
+        knownCode === "EXTRACTION_PROVENANCE_MISSING"
+          ? "EXTRACTION_PROVENANCE_MISSING"
+          : knownCode === "EXTRACTION_INVALID_OUTPUT"
+            ? "EXTRACTION_INVALID_OUTPUT"
+            : "EXTRACTION_PERSISTENCE_FAILED",
+        false,
+        knownCode === "EXTRACTION_PROVENANCE_MISSING"
+          ? "An extracted record is missing source provenance."
+          : "Structured extraction could not be persisted safely.",
+      );
+    }
+    if (data !== true) throw new CompletionUncertainError();
   }
 
   async fail(job: ClaimedDocumentJob, failure: WorkerFailure) {

@@ -868,6 +868,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      complete_document_processing_with_extraction: {
+        Args: {
+          p_candidates: Json
+          p_job_id: string
+          p_lock_token: string
+          p_ocr_provider?: string | null
+          p_ocr_version?: string | null
+          p_pages: Json
+        }
+        Returns: boolean
+      }
       fail_document_processing_job: {
         Args: {
           p_error_code: string

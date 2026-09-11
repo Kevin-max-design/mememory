@@ -1,5 +1,11 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
+import {
+  DeterministicExtractionProvider,
+  ExtractionError,
+  type ExtractionCandidate,
+  type ExtractionProvider,
+} from "@/features/extraction";
 
 const boundingBoxSchema = z
   .object({
@@ -81,6 +87,7 @@ export type PersistedPage = {
   skew_angle: number;
   native_text_used: boolean;
   blocks: {
+    id: string;
     block_index: number;
     text: string;
     confidence: number | null;
@@ -91,6 +98,7 @@ export type PersistedPage = {
 
 export type CompletionPayload = {
   pages: PersistedPage[];
+  candidates: ExtractionCandidate[];
   ocrProvider: string | null;
   ocrVersion: string | null;
 };
@@ -129,7 +137,10 @@ export type WorkerResult =
       jobId: string;
     };
 
-function completionPayload(response: ProcessorResponse): CompletionPayload {
+function completionPayload(
+  response: ProcessorResponse,
+  extractionProvider: ExtractionProvider,
+): CompletionPayload {
   const pages = response.data.pages.map((page) => ({
     page_number: page.page_number,
     width: page.width,
@@ -138,6 +149,7 @@ function completionPayload(response: ProcessorResponse): CompletionPayload {
     skew_angle: page.skew_angle,
     native_text_used: page.source === "native_pdf",
     blocks: page.blocks.map((block, blockIndex) => ({
+      id: randomUUID(),
       block_index: blockIndex,
       text: block.text,
       confidence: block.confidence,
@@ -145,9 +157,20 @@ function completionPayload(response: ProcessorResponse): CompletionPayload {
       source_type: page.source,
     })),
   }));
+  const candidates = extractionProvider.extract(
+    response.data.document_id,
+    pages.flatMap((page) =>
+      page.blocks.map((block) => ({
+        id: block.id,
+        pageNumber: page.page_number,
+        text: block.text,
+      })),
+    ),
+  );
   const ocrPage = response.data.pages.find((page) => page.source === "ocr");
   return {
     pages,
+    candidates,
     ocrProvider: ocrPage?.provider.name ?? null,
     ocrVersion: ocrPage?.provider.version ?? null,
   };
@@ -155,6 +178,9 @@ function completionPayload(response: ProcessorResponse): CompletionPayload {
 
 function normalizeFailure(error: unknown) {
   if (error instanceof WorkerFailure) return error;
+  if (error instanceof ExtractionError) {
+    return new WorkerFailure(error.code, false, error.safeMessage);
+  }
   return new WorkerFailure(
     "PROCESSING_JOB_FAILED",
     true,
@@ -166,6 +192,8 @@ export class DocumentWorker {
   constructor(
     private readonly dependencies: WorkerDependencies,
     private readonly heartbeatMilliseconds = 30_000,
+    private readonly extractionProvider: ExtractionProvider =
+      new DeterministicExtractionProvider(),
   ) {}
 
   async runOnce(): Promise<WorkerResult> {
@@ -231,7 +259,18 @@ export class DocumentWorker {
       }
       if (claimLost) throw new ClaimLostError();
 
-      await this.dependencies.complete(job, completionPayload(parsed.data));
+      let payload: CompletionPayload;
+      try {
+        payload = completionPayload(parsed.data, this.extractionProvider);
+      } catch (error) {
+        if (error instanceof ExtractionError) throw error;
+        throw new WorkerFailure(
+          "EXTRACTION_INVALID_OUTPUT",
+          false,
+          "Structured extraction produced invalid output.",
+        );
+      }
+      await this.dependencies.complete(job, payload);
       return { outcome: "completed", jobId: job.jobId, documentId: job.documentId };
     } catch (error) {
       if (error instanceof CompletionUncertainError) {

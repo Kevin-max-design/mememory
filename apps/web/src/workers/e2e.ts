@@ -24,7 +24,8 @@ function syntheticPdf() {
         "import fitz,sys",
         "document=fitz.open()",
         "page=document.new_page()",
-        "page.insert_text((72,100),'Synthetic worker integration source text only.',fontsize=14)",
+        "lines=['Hemoglobin 13.5 g/dL 12.0-16.0','WBC 7.2 x10^3/uL 4.0-11.0','Medication: Metformin 500 mg twice daily oral','Diagnosis: Type 2 diabetes mellitus','Allergy: Penicillin - rash','BP 120/80 mmHg Pulse 72 bpm Temperature 98.6 F SpO2 98%','Procedure: Electrocardiogram']",
+        "[page.insert_text((72,100+i*28),line,fontsize=11) for i,line in enumerate(lines)]",
         "sys.stdout.buffer.write(document.tobytes())",
       ].join(";"),
     ],
@@ -132,23 +133,33 @@ async function main() {
     const result = await new DocumentWorker(dependencies, 1_000).runOnce();
     if (result.outcome !== "completed") throw new Error("WORKER_DID_NOT_COMPLETE");
 
-    const [document, job, pages, blocks] = await Promise.all([
+    const [document, job, pages, blocks, records] = await Promise.all([
       admin.from("documents").select("processing_status").eq("id", documentId).single(),
       admin.from("processing_jobs").select("status,attempt_count").eq("id", jobId).single(),
       admin.from("document_pages").select("id,native_text_used").eq("document_id", documentId),
       admin.from("document_text_blocks").select("id").eq("document_id", documentId),
+      admin.from("medical_records").select("id,record_type,review_status,source_page_number,source_block_ids,fingerprint").eq("document_id", documentId),
     ]);
     if (
       document.error ||
       job.error ||
       pages.error ||
       blocks.error ||
+      records.error ||
       document.data.processing_status !== "needs_review" ||
       job.data.status !== "completed" ||
       job.data.attempt_count !== 1 ||
       pages.data.length !== 1 ||
       !pages.data[0].native_text_used ||
-      blocks.data.length < 1
+      blocks.data.length < 1 ||
+      records.data.length < 9 ||
+      records.data.some((record) =>
+        record.review_status !== "extracted" ||
+        record.source_page_number !== 1 ||
+        record.source_block_ids.length < 1 ||
+        !record.source_block_ids.every((id) => blocks.data.some((block) => block.id === id)) ||
+        !/^[a-f0-9]{64}$/.test(record.fingerprint)
+      )
     ) {
       throw new Error("WORKER_PERSISTENCE_ASSERTION_FAILED");
     }
@@ -159,6 +170,9 @@ async function main() {
         outcome: result.outcome,
         pages: pages.data.length,
         blocks: blocks.data.length,
+        records: records.data.length,
+        categories: [...new Set(records.data.map((record) => record.record_type))].sort(),
+        provenance: "verified",
         documentStatus: document.data.processing_status,
         jobStatus: job.data.status,
       })}\n`,
