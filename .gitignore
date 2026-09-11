@@ -13,4 +13,5 @@ coverage/
 
 *.egg-info/
 .paddleocr/
+.paddlex/
 services/document-processor/models/

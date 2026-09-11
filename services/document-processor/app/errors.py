@@ -34,5 +34,13 @@ def ocr_failed_error() -> ProcessorError:
     return ProcessorError("OCR_PROCESSING_FAILED", "OCR processing failed.", 422)
 
 
+def invalid_ocr_image_error(shape: tuple[int, ...], dtype: str) -> ProcessorError:
+    return ProcessorError(
+        "OCR_INVALID_IMAGE",
+        f"OCR image has unsupported shape={shape} dtype={dtype}.",
+        422,
+    )
+
+
 def pdf_render_error() -> ProcessorError:
     return ProcessorError("PDF_RENDER_FAILED", "A PDF page could not be rendered.", 422)

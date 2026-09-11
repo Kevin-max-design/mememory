@@ -9,7 +9,12 @@ import numpy as np
 import pytesseract
 from pytesseract import Output, TesseractError, TesseractNotFoundError
 
-from app.errors import ProcessorError, ocr_failed_error, ocr_unavailable_error
+from app.errors import (
+    ProcessorError,
+    invalid_ocr_image_error,
+    ocr_failed_error,
+    ocr_unavailable_error,
+)
 from app.quality import score_ocr
 from app.schemas import BoundingBox, ProviderMetadata, TextBlock
 
@@ -103,6 +108,36 @@ class PaddleOCRProvider:
     def __init__(self, engine: Any | None = None):
         self._engine = engine
 
+    @staticmethod
+    def prepare_image(image: np.ndarray) -> np.ndarray:
+        """Return a copied RGB uint8 H,W,3 array accepted by PaddleOCR."""
+        source = np.asarray(image)
+        shape = tuple(int(value) for value in source.shape)
+        dtype = str(source.dtype)
+        if source.ndim not in (2, 3):
+            raise invalid_ocr_image_error(shape, dtype)
+        array = np.array(source, copy=True)
+        if np.issubdtype(array.dtype, np.floating):
+            if not np.isfinite(array).all():
+                raise invalid_ocr_image_error(shape, dtype)
+            minimum = float(array.min()) if array.size else 0.0
+            maximum = float(array.max()) if array.size else 0.0
+            if minimum >= 0 and maximum <= 1:
+                array = array * 255
+            array = np.clip(array, 0, 255).astype(np.uint8)
+        elif array.dtype != np.uint8:
+            array = np.clip(array, 0, 255).astype(np.uint8)
+
+        if array.ndim == 2:
+            array = cv2.cvtColor(array, cv2.COLOR_GRAY2RGB)
+        elif array.shape[2] == 1:
+            array = cv2.cvtColor(array[:, :, 0], cv2.COLOR_GRAY2RGB)
+        elif array.shape[2] == 4:
+            array = cv2.cvtColor(array, cv2.COLOR_RGBA2RGB)
+        elif array.shape[2] != 3:
+            raise invalid_ocr_image_error(shape, dtype)
+        return np.ascontiguousarray(array)
+
     def _load(self) -> Any:
         if self._engine is not None:
             return self._engine
@@ -121,7 +156,8 @@ class PaddleOCRProvider:
     def extract(self, image: np.ndarray, page_number: int, preprocessing: list[str]) -> OCRResult:
         try:
             engine = self._load()
-            raw = engine.predict(image) if hasattr(engine, "predict") else engine.ocr(image, cls=True)
+            paddle_image = self.prepare_image(image)
+            raw = engine.predict(paddle_image) if hasattr(engine, "predict") else engine.ocr(paddle_image, cls=True)
         except ProcessorError:
             raise
         except Exception as error:
@@ -130,8 +166,12 @@ class PaddleOCRProvider:
             result = raw[0]
             texts = result.get("rec_texts", [])
             scores = result.get("rec_scores", [])
-            polygons = result.get("rec_polys", result.get("dt_polys", []))
-            lines = [[box, [text, score]] for box, text, score in zip(polygons, texts, scores)]
+            boxes = result.get("rec_boxes")
+            polygons = boxes if boxes is not None and len(boxes) else result.get("rec_polys", result.get("dt_polys", []))
+            lines = [
+                [box, [text, scores[index] if index < len(scores) else None]]
+                for index, (box, text) in enumerate(zip(polygons, texts))
+            ]
         else:
             lines = raw[0] if raw and isinstance(raw[0], list) else raw
         parsed: list[tuple[float, float, TextBlock]] = []
@@ -141,9 +181,24 @@ class PaddleOCRProvider:
             box, value = item[0], item[1]
             if not isinstance(value, (list, tuple)) or len(value) < 2 or not str(value[0]).strip():
                 continue
-            xs, ys = [float(point[0]) for point in box], [float(point[1]) for point in box]
+            confidence = value[1]
+            if confidence is None:
+                parsed_confidence = None
+            else:
+                try:
+                    parsed_confidence = max(0.0, min(float(confidence), 1.0))
+                except (TypeError, ValueError):
+                    parsed_confidence = None
+            if len(box) == 4 and all(np.isscalar(coordinate) for coordinate in box):
+                xs, ys = [float(box[0]), float(box[2])], [float(box[1]), float(box[3])]
+            else:
+                try:
+                    xs = [float(point[0]) for point in box]
+                    ys = [float(point[1]) for point in box]
+                except (TypeError, ValueError, IndexError):
+                    continue
             block = TextBlock(id=f"p{page_number}-ocr-{index}", text=str(value[0]).strip(),
-                confidence=max(0.0, min(float(value[1]), 1.0)),
+                confidence=parsed_confidence,
                 bbox=BoundingBox(x0=min(xs), y0=min(ys), x1=max(xs), y1=max(ys)))
             parsed.append((min(ys), min(xs), block))
         blocks = [item[2] for item in sorted(parsed, key=lambda item: (round(item[0] / 10), item[1]))]
