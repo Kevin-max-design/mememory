@@ -62,12 +62,23 @@ class PageAnalysis(BaseModel):
 
 
 class BrainCandidate(BaseModel):
-    record_type: Literal["lab", "medication", "diagnosis", "allergy", "vital", "procedure", "doctor_note"]
+    record_type: Literal[
+        "lab", "medication", "diagnosis", "allergy", "vital", "procedure", "doctor_note"
+    ]
     source_page_number: int = Field(ge=1)
     source_block_ids: list[str] = Field(min_length=1)
     source_text: str = Field(min_length=1)
     confidence: Literal["high", "medium", "low"]
     data: dict[str, str | float | int | None]
+    source_start: int | None = Field(default=None, ge=0)
+    source_end: int | None = Field(default=None, ge=0)
+    entity_text: str | None = None
+    normalized_name: str | None = None
+    assertion: dict[str, str] = Field(default_factory=dict)
+    provider: str = "openmed"
+    provider_version: str = "unavailable"
+    model_name: str | None = None
+    model_confidence: float | None = Field(default=None, ge=0, le=1)
 
 
 class ClinicalBrainMetadata(BaseModel):
@@ -75,6 +86,7 @@ class ClinicalBrainMetadata(BaseModel):
     version: str = "unavailable"
     invoked: bool = False
     model_backed: bool = False
+    model_name: str | None = None
     apis_used: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     candidates_before_validation: int = 0

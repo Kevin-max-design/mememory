@@ -35,6 +35,7 @@ page-level diagnostics without document text:
 ```sh
 npm run benchmark:ocr -- /absolute/path/to/report.pdf
 npm run benchmark:clinical -- /absolute/path/to/report.pdf
+npm run benchmark:clinical:synthetic
 ```
 
 PaddleOCR model downloads are intentionally manual. When models are absent, the command
@@ -46,6 +47,9 @@ reconstructs PaddleOCR table cells by vertical geometry.
 The clinical command also invokes OpenMed's verified deterministic measurement APIs and
 reports OpenMed, deterministic, validation, deduplication, and composite candidate counts.
 It does not enable model-backed clinical NER or print candidate values or source text.
+The synthetic command exercises the cached `urchade/gliner_large_bio-v0.1` model through
+OpenMed with diagnosis, medication, allergy, procedure, finding, and assertion fixtures.
+It is local-only and reports aggregate counts without printing entity or fixture text.
 
 ## Install
 

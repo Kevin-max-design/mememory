@@ -1,4 +1,5 @@
 """Stateless internal document processing service; never logs request bodies."""
+
 import logging
 import secrets
 from contextlib import asynccontextmanager
@@ -31,7 +32,7 @@ class Settings(BaseSettings):
     enable_openmed: bool = False
     openmed_local_only: bool = True
     openmed_model_dir: str = ""
-    openmed_disease_model: str = ""
+    openmed_disease_model: str = "urchade/gliner_large_bio-v0.1"
     openmed_drug_model: str = ""
     openmed_pii_model: str = ""
     enable_ocr_debug: bool = False
@@ -49,7 +50,10 @@ async def lifespan(app: FastAPI):
         else fallback
     )
     clinical = (
-        CompositeClinicalNlpProvider(OpenMedClinicalNlpProvider(), NoopClinicalNlpProvider())
+        CompositeClinicalNlpProvider(
+            OpenMedClinicalNlpProvider(app.state.settings.openmed_disease_model),
+            NoopClinicalNlpProvider(),
+        )
         if app.state.settings.enable_openmed and app.state.settings.openmed_local_only
         else NoopClinicalNlpProvider()
     )
@@ -107,7 +111,9 @@ def analyze_document(payload: AnalyzeRequest, request: Request):
                 page.provider.name,
                 page.provider.fallback_reason or "none",
                 page.provider.selected_variant or "default",
-                page.provider.quality_score if page.provider.quality_score is not None else "native",
+                page.provider.quality_score
+                if page.provider.quality_score is not None
+                else "native",
                 len(page.blocks),
                 page.provider.quality_reason or "none",
             )

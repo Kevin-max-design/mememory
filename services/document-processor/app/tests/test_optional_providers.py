@@ -82,7 +82,7 @@ def test_openmed_brain_unavailable_falls_back_without_candidates():
     )
     assert result.candidates == ()
     assert result.metadata.invoked is False
-    assert result.metadata.warnings == ["openmed_unavailable_fallback"]
+    assert result.metadata.warnings == ["OPENMED_NER_FAILED"]
 
 
 @pytest.mark.parametrize(

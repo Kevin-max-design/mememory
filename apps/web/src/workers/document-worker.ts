@@ -68,6 +68,7 @@ export const processorResponseSchema = z
         version: z.string().max(100),
         invoked: z.boolean(),
         model_backed: z.boolean(),
+        model_name: z.string().max(200).nullable().optional(),
         apis_used: z.array(z.string().max(100)),
         warnings: z.array(z.string().max(200)),
         candidates_before_validation: z.number().int().nonnegative(),
@@ -81,6 +82,15 @@ export const processorResponseSchema = z
         source_text: z.string().min(1),
         confidence: z.enum(["high", "medium", "low"]),
         data: z.record(z.string(), z.union([z.string(), z.number(), z.null()])),
+        source_start: z.number().int().nonnegative().nullable().optional(),
+        source_end: z.number().int().nonnegative().nullable().optional(),
+        entity_text: z.string().nullable().optional(),
+        normalized_name: z.string().nullable().optional(),
+        assertion: z.record(z.string(), z.string()).optional(),
+        provider: z.string().max(100).optional(),
+        provider_version: z.string().max(100).optional(),
+        model_name: z.string().max(200).nullable().optional(),
+        model_confidence: z.number().min(0).max(1).nullable().optional(),
       })).optional(),
     }),
   })
@@ -188,6 +198,8 @@ function openMedCandidates(response: ProcessorResponse, pages: PersistedPage[]) 
     else if (bound.some((source) => source?.page !== proposal.source_page_number)) reason = "no_provenance";
     else if (bound.some((source) => source?.region && source.region !== "main_content")) reason = "likely_header_footer";
     else if (!bound.some((source) => source?.text.includes(proposal.source_text))) reason = "no_provenance";
+    else if (proposal.source_start != null && proposal.source_end != null &&
+      proposal.entity_text !== proposal.source_text.slice(proposal.source_start, proposal.source_end)) reason = "invalid_span";
     else if (!/[A-Za-z]{2}/.test(proposal.source_text) || /^[\W_]+$/.test(proposal.source_text)) reason = "garbage_punctuation";
     else if (proposal.record_type === "lab" && (!proposal.data.test_name || !proposal.data.original_value)) reason = "no_same_row_value";
     if (reason) { rejected[reason] = (rejected[reason] ?? 0) + 1; continue; }
@@ -199,7 +211,7 @@ function openMedCandidates(response: ProcessorResponse, pages: PersistedPage[]) 
     accepted.push({ recordType: proposal.record_type, eventDate: null, confidence: proposal.confidence,
       sourceDocumentId: response.data.document_id, sourcePageNumber: proposal.source_page_number,
       sourceBlockIds: sourceIds, sourceText: proposal.source_text, extractionMethod: "openmed",
-      extractionVersion: response.data.clinical_brain?.version ?? "2.3.0", fingerprint, data: proposal.data });
+      extractionVersion: proposal.provider_version ?? response.data.clinical_brain?.version ?? "2.3.0", fingerprint, data: proposal.data });
   }
   return { accepted, rejected };
 }
