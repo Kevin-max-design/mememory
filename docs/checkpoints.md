@@ -214,3 +214,37 @@ all clinical documents; dates and complex multi-block relationships remain conse
 Ollama is an unavailable-safe interface only; English OCR is the default; no review UI,
 Ask MedMemory, or Doctor Brief exists yet.
 NEXT PHASE: stop. Do not begin Phase 8 without explicit instruction.
+
+## Phase 8 — Review UI and source provenance
+STATUS: PASS
+IMPLEMENTED: authenticated records list, record detail, and two-column review routes;
+exact page/block source display; grouped extraction candidates; confidence and review
+status labels; approve, reject, and corrections for labs, medications, diagnoses,
+allergies, vitals, procedures, and doctor notes. A strict Zod API and authenticated,
+owner-scoped database function preserve provenance and update document status atomically.
+FILES CHANGED: apps/web/src/app/records; apps/web/src/app/api/records;
+apps/web/src/components/review-workspace.tsx; apps/web/src/features/medical-records;
+apps/web/src/app/dashboard/page.tsx; apps/web/src/test/review-schema.test.ts;
+apps/web/src/types/database.types.ts; apps/web/src/workers/e2e.ts, documents.ts;
+scripts/review_database.py; supabase/migrations/202609110002_review_workflow.sql;
+docs/checkpoints.md.
+COMMANDS RUN: database.py verify; database.py apply --only
+202609110002_review_workflow.sql; review_database.py; npm run test:worker:e2e -- --review;
+npm test; npm run lint; npm run typecheck; npm run build; pytest; Ruff;
+migration parsing; browser bundle secret scan; git diff --check.
+TEST RESULTS: 44 web tests PASS; 15 processor tests PASS; lint, typecheck, build,
+Ruff, migration parse, secret scan, and diff check PASS. Rollback tests confirmed
+cross-user denial, provenance preservation, correction persistence, and document-state
+transitions. Live verification reviewed 10 generated candidates: the document remained
+needs_review with one extracted candidate, then became completed after the final
+correction. Corrected provenance was unchanged.
+ISSUES FOUND: no security or integration defects remained. Python dependencies emit
+seven upstream deprecation warnings.
+FIXES APPLIED: added authenticated transactional review RPC and strict client payload
+schemas; no ownership, document, or provenance fields are client-editable. Synthetic
+cleanup restored 2 users, 2 storage objects, 2 queued documents, 2 queued jobs, and zero
+page/block/medical/child rows. Existing jobs remained queued. Auth migration is pending.
+REMAINING LIMITATIONS: source display highlights text blocks but does not overlay the
+original PDF/image; activity shows upload metadata rather than a full audit history;
+review corrections cover the requested core fields and omit advanced clinical coding.
+NEXT PHASE: stop. Do not begin Phase 9 without explicit instruction.

@@ -16,6 +16,7 @@ import {
 
 export const workerEnvironmentSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.url(),
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   DOCUMENT_PROCESSOR_URL: z.url(),
   DOCUMENT_PROCESSOR_SECRET: z.string().min(32),

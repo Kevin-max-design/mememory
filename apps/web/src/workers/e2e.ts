@@ -82,9 +82,11 @@ async function main() {
     );
     await waitForProcessor(processorUrl, parsed.data.DOCUMENT_PROCESSOR_SECRET);
 
+    const email = `worker-e2e-${randomUUID()}@example.test`;
+    const password = randomBytes(32).toString("base64url");
     const { data: created, error: userError } = await admin.auth.admin.createUser({
-      email: `worker-e2e-${randomUUID()}@example.test`,
-      password: randomBytes(32).toString("base64url"),
+      email,
+      password,
       email_confirm: true,
     });
     if (userError || !created.user) throw new Error("SYNTHETIC_USER_CREATE_FAILED");
@@ -164,6 +166,37 @@ async function main() {
       throw new Error("WORKER_PERSISTENCE_ASSERTION_FAILED");
     }
 
+    let reviewResult: Record<string, unknown> = {};
+    if (process.argv.includes("--review")) {
+      const userClient = createClient<Database>(
+        parsed.data.NEXT_PUBLIC_SUPABASE_URL,
+        parsed.data.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      );
+      const { error: signInError } = await userClient.auth.signInWithPassword({ email, password });
+      if (signInError) throw new Error("SYNTHETIC_REVIEW_SIGN_IN_FAILED");
+      const corrected = records.data.find((record) => record.record_type === "lab");
+      if (!corrected) throw new Error("SYNTHETIC_REVIEW_RECORD_MISSING");
+      const provenanceBefore = [corrected.source_page_number, corrected.source_block_ids.join(",")];
+      for (const record of records.data.filter((record) => record.id !== corrected.id)) {
+        const { data: status, error: reviewError } = await userClient.rpc("review_medical_record", {
+          p_document_id: documentId, p_record_id: record.id, p_action: "approve", p_correction: null,
+        });
+        if (reviewError || status !== "needs_review") throw new Error("SYNTHETIC_REVIEW_APPROVE_FAILED");
+      }
+      const { data: finalStatus, error: correctionError } = await userClient.rpc("review_medical_record", {
+        p_document_id: documentId,
+        p_record_id: corrected.id,
+        p_action: "correct",
+        p_correction: { recordType: "lab", test_name: "Hemoglobin", original_value: "13.6", numeric_value: 13.6, unit: "g/dL", reference_range: "12.0-16.0", flag: null },
+      });
+      const { data: after, error: afterError } = await admin.from("medical_records").select("review_status,source_page_number,source_block_ids").eq("id", corrected.id).single();
+      if (correctionError || finalStatus !== "completed" || afterError || after.review_status !== "corrected" || provenanceBefore[0] !== after.source_page_number || provenanceBefore[1] !== after.source_block_ids.join(",")) {
+        throw new Error("SYNTHETIC_REVIEW_CORRECTION_FAILED");
+      }
+      reviewResult = { review: "PASS", finalDocumentStatus: finalStatus, provenanceAfterCorrection: "verified" };
+    }
+
     process.stdout.write(
       `${JSON.stringify({
         status: "PASS",
@@ -175,6 +208,7 @@ async function main() {
         provenance: "verified",
         documentStatus: document.data.processing_status,
         jobStatus: job.data.status,
+        ...reviewResult,
       })}\n`,
     );
   } finally {
