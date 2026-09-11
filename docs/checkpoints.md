@@ -248,3 +248,32 @@ REMAINING LIMITATIONS: source display highlights text blocks but does not overla
 original PDF/image; activity shows upload metadata rather than a full audit history;
 review corrections cover the requested core fields and omit advanced clinical coding.
 NEXT PHASE: stop. Do not begin Phase 9 without explicit instruction.
+
+## Phase 9 — Medical timeline
+STATUS: PASS
+IMPLEMENTED: authenticated dynamic medical timeline, dashboard shortcut and recent
+events, newest-first ordering, category filters, text search, category/status badges,
+source document links, and provenance links. Trusted events include only approved or
+corrected facts; document events remain clearly distinct.
+FILES CHANGED: apps/web/src/app/timeline/page.tsx; components/timeline-view.tsx;
+features/timeline/builder.ts, data.ts; test/timeline.test.ts; dashboard/page.tsx;
+components/review-workspace.tsx; workers/e2e.ts; docs/checkpoints.md.
+COMMANDS RUN: npm run test:worker:e2e -- --timeline; database.py verify; npm test;
+npm run lint; npm run typecheck; npm run build; pytest; Ruff; browser bundle secret
+scan; git diff --check.
+TEST RESULTS: 49 web tests PASS; 15 processor tests PASS; lint, typecheck, production
+build, Ruff, secret scan, and diff check PASS. Live isolated flow produced 1 document,
+10 reviewed facts, and 11 timeline events with verified source links. Extracted and
+rejected facts were absent from the trusted timeline.
+DATE BEHAVIOR: child clinical date, then medical-record/document event date, then
+document creation time. Creation-time fallbacks display the explicit label Upload date.
+FILTERS: All, Labs, Medications, Diagnoses, Allergies, Vitals, Procedures, Documents,
+plus case-insensitive title/description search.
+ISSUES FOUND: none. No Phase 9 migration was required. Python dependencies continue to
+emit seven upstream deprecation warnings.
+CLEANUP: restored 2 users, 2 storage objects, 2 queued documents, 2 queued jobs, and
+zero page/block/medical/child rows. Existing records were unchanged.
+REMAINING LIMITATIONS: date range filtering is not included; documents without medical
+dates use labelled upload dates; dynamic events are computed at request time rather than
+persisted; no event editing exists in this phase.
+NEXT PHASE: stop. Do not begin Phase 10 without explicit instruction.

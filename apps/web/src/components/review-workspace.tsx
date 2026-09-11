@@ -59,7 +59,7 @@ export function ReviewWorkspace({ documentId, pages, blocks, records }: {
     <section className="space-y-6">
       <div><h2 className="text-lg font-semibold">Extracted data</h2><p aria-live="polite" className="mt-1 text-sm text-teal-700">{message}</p></div>
       {grouped.map(([kind, label, group]) => <div key={kind}><h3 className="mb-2 font-semibold">{label}</h3><div className="space-y-3">
-        {group.map((record) => <article className="rounded-xl border border-slate-200 bg-white p-4" key={record.id}>
+        {group.map((record) => <article className="rounded-xl border border-slate-200 bg-white p-4" id={`record-${record.id}`} key={record.id}>
           <div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold capitalize">{record.reviewStatus}</span><span className="text-xs text-slate-500">{record.confidence >= .8 ? "High" : record.confidence >= .5 ? "Medium" : "Low"} confidence</span></div>
           {editing === record.id ? <form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); void submit(record, "correct", event.currentTarget); }}>
             {editable[record.recordType].map((field) => <label className="text-sm capitalize" key={field}>{field.replaceAll("_", " ")}<input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" defaultValue={record.values[field] ?? ""} name={field} type={numericFields.has(field) ? "number" : field === "performed_at" ? "date" : "text"} step="any" /></label>)}

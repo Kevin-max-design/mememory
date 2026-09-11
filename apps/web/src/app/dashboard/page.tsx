@@ -3,6 +3,7 @@ import { authErrorMessage } from "@/features/auth/errors";
 import { DocumentUpload } from "@/components/document-upload";
 import { requireUser } from "@/server/auth/require-user";
 import Link from "next/link";
+import { getTimelineEvents } from "@/features/timeline/data";
 
 export default async function DashboardPage({
   searchParams,
@@ -24,6 +25,7 @@ export default async function DashboardPage({
     .select("id, display_name, mime_type, file_size, processing_status, created_at")
     .order("created_at", { ascending: false });
   if (documentsError) throw new Error("DOCUMENT_LIST_FAILED");
+  const timelineEvents = await getTimelineEvents();
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
@@ -62,6 +64,7 @@ export default async function DashboardPage({
         </p>
         <DocumentUpload />
       </section>
+      <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6"><div className="flex items-center justify-between"><div><h2 className="text-xl font-semibold">Medical timeline</h2><p className="mt-1 text-sm text-slate-500">Your reviewed history in chronological order.</p></div><Link className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white" href="/timeline">Open timeline</Link></div>{timelineEvents.length ? <ul className="mt-4 divide-y divide-slate-100">{timelineEvents.slice(0, 3).map((event) => <li className="flex justify-between gap-4 py-3" key={event.id}><span>{event.title}</span><span className="text-sm text-slate-500">{new Date(event.date).toLocaleDateString()}</span></li>)}</ul> : <p className="mt-4 text-sm text-slate-500">Reviewed records will appear here.</p>}</section>
       <section className="mt-8">
         <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Your documents</h2><Link className="text-sm font-semibold text-teal-700" href="/records">View all records</Link></div>
         {documents?.length ? (

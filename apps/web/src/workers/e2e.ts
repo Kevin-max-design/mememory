@@ -9,6 +9,7 @@ import {
   SupabaseWorkerDependencies,
   workerEnvironmentSchema,
 } from "./documents";
+import { buildTimeline, type TimelineRecord } from "../features/timeline/builder";
 
 const webDirectory = fileURLToPath(new URL("../../", import.meta.url));
 const repositoryDirectory = fileURLToPath(new URL("../../../../", import.meta.url));
@@ -167,7 +168,7 @@ async function main() {
     }
 
     let reviewResult: Record<string, unknown> = {};
-    if (process.argv.includes("--review")) {
+    if (process.argv.includes("--review") || process.argv.includes("--timeline")) {
       const userClient = createClient<Database>(
         parsed.data.NEXT_PUBLIC_SUPABASE_URL,
         parsed.data.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
@@ -195,6 +196,26 @@ async function main() {
         throw new Error("SYNTHETIC_REVIEW_CORRECTION_FAILED");
       }
       reviewResult = { review: "PASS", finalDocumentStatus: finalStatus, provenanceAfterCorrection: "verified" };
+      if (process.argv.includes("--timeline")) {
+        const { data: reviewed, error: reviewedError } = await admin.from("medical_records").select("id,document_id,record_type,review_status,event_date").eq("document_id", documentId);
+        const recordIds = reviewed?.map((record) => record.id) ?? [];
+        const childResults = await Promise.all([
+          admin.from("lab_results").select("*").in("medical_record_id", recordIds), admin.from("medications").select("*").in("medical_record_id", recordIds),
+          admin.from("diagnoses").select("*").in("medical_record_id", recordIds), admin.from("allergies").select("*").in("medical_record_id", recordIds),
+          admin.from("vitals").select("*").in("medical_record_id", recordIds), admin.from("procedures").select("*").in("medical_record_id", recordIds),
+          admin.from("doctor_notes").select("*").in("medical_record_id", recordIds),
+        ]);
+        if (reviewedError || childResults.some((result) => result.error)) throw new Error("SYNTHETIC_TIMELINE_READ_FAILED");
+        const childMap = new Map<string, Record<string, string | number | null>>();
+        for (const childResult of childResults) for (const row of childResult.data ?? []) {
+          const values = { ...(row as Record<string, string | number | null>) }; const recordId = String(values.medical_record_id);
+          delete values.id; delete values.medical_record_id; delete values.user_id; childMap.set(recordId, values);
+        }
+        const timelineRecords: TimelineRecord[] = (reviewed ?? []).map((record) => ({ id: record.id, documentId: record.document_id, recordType: record.record_type, reviewStatus: record.review_status, eventDate: record.event_date, values: childMap.get(record.id) ?? {} }));
+        const timeline = buildTimeline([{ id: documentId, displayName: "Synthetic worker fixture", documentType: null, eventDate: null, createdAt: new Date().toISOString(), processingStatus: "completed" }], timelineRecords);
+        if (timeline.length !== 11 || timeline.some((event) => event.reviewStatus === "extracted" || event.reviewStatus === "rejected") || timeline.some((event) => !event.sourceHref.includes(documentId))) throw new Error("SYNTHETIC_TIMELINE_ASSERTION_FAILED");
+        reviewResult = { ...reviewResult, timeline: "PASS", timelineEvents: timeline.length, sourceLinks: "verified" };
+      }
     }
 
     process.stdout.write(
