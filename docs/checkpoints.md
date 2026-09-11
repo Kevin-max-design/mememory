@@ -146,3 +146,37 @@ REMAINING LIMITATIONS: English is the Tesseract default; preprocessing does not 
 a normalized image; no worker, Supabase access, job claiming or result persistence;
 the endpoint accepts internal base64 payloads and is not wired to uploaded documents.
 NEXT PHASE: persistence/job worker integration, only after explicit instruction.
+
+## Phase 6 — Job worker and processing orchestration
+STATUS: PASS
+IMPLEMENTED: DB-backed document worker with atomic targeted/general claims, lock-token
+renewal, bounded retries, stale-lock recovery, private object retrieval, SHA-256 and size
+revalidation, authenticated processor calls, strict response validation, transactional
+page/block persistence, idempotent completion, and explicit safe failures. Added a
+single-job synthetic integration harness with cleanup and a migration runner option that
+can apply one exact filename without applying other pending migrations.
+FILES CHANGED: apps/web/src/workers/document-worker.ts, documents.ts, e2e.ts;
+apps/web/src/test/document-worker.test.ts; apps/web/src/types/database.types.ts;
+supabase/migrations/202609100002_document_worker.sql; scripts/database.py;
+scripts/document_worker_database.py; processor schema/preprocessing files; package files;
+README.md; docs/checkpoints.md.
+COMMANDS RUN: database.py verify; document_worker_database.py; npm run test:worker:e2e;
+npm test; npm run lint; npm run typecheck; npm run build; processor pytest; Ruff;
+git diff --check.
+TEST RESULTS: worker migration recorded applied; auth migration remains pending. Five
+rollback-only database checks PASS. Synthetic native-PDF pipeline PASS with one page and
+one block, document needs_review, job completed, attempt count one. Cleanup restored the
+baseline: 2 users, 2 storage objects, 2 queued documents, 2 queued jobs, zero pages and
+zero blocks. Existing queued jobs remained queued. Web 30 tests PASS; lint, typecheck and
+production build PASS. Processor 15 tests PASS; Ruff PASS.
+ISSUES FOUND: project remains on a dashboard branch labeled main PRODUCTION, though the
+user explicitly confirmed it is the intended development/staging project with synthetic
+data only. Python dependencies emit seven upstream deprecation warnings.
+FIXES APPLIED: restricted worker functions to service_role; targeted the E2E claim by its
+generated job UUID; fixed the privilege test with a savepoint; verified cleanup using a
+database-enforced read-only TLS session and aggregate counts only.
+REMAINING LIMITATIONS: worker is a command process and still needs an external supervisor
+for deployment; processor payloads are base64 and memory-bound; English Tesseract is the
+default; structured medical extraction, review UI, and production orchestration are out
+of scope. The authentication migration remains pending.
+NEXT PHASE: stop. Do not begin Phase 7 without explicit instruction.

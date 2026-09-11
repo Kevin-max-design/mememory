@@ -43,11 +43,12 @@ def run(db):
 
         db.execute("set local role authenticated")
         db.execute("select set_config('request.jwt.claim.sub',%s,true)", (str(user_id),))
+        db.execute("savepoint expect_privilege_error")
         try:
             claim(db, job_id)
             raise AssertionError("Authenticated role claimed an internal job")
         except errors.InsufficientPrivilege:
-            pass
+            db.execute("rollback to savepoint expect_privilege_error")
         finally:
             db.execute("reset role")
         print("PASS worker functions reject authenticated clients")

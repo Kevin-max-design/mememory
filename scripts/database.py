@@ -29,16 +29,20 @@ def connect(*, read_only=False):
     return connection
 
 
-def validate():
+def validate(target_only=None):
     files = sorted((ROOT / "supabase/migrations").glob("*.sql"))
+    if target_only:
+        files = [f for f in files if f.name == target_only]
+        if not files:
+            raise SystemExit(f"Migration file {target_only} not found")
     for file in files:
         statements = parse_sql(file.read_text())
         print(f"PARSED {file.name}: {len(statements)} statements (not database execution)")
     return files
 
 
-def apply():
-    files = validate()
+def apply(target_only=None):
+    files = validate(target_only=target_only)
     with connect() as db:
         db.execute("select pg_advisory_xact_lock(821496331)")
         db.execute("create schema if not exists medmemory_migrations")
@@ -117,19 +121,29 @@ def verify():
             ).fetchone()[0]
         for name, count in counts.items():
             print(f"row count {name}: {count}")
+        for status, count in db.execute(
+            "select status, count(*) from public.processing_jobs group by status order by status"
+        ).fetchall():
+            print(f"processing job status {status}: {count}")
+        for status, count in db.execute(
+            "select processing_status, count(*) from public.documents "
+            "group by processing_status order by processing_status"
+        ).fetchall():
+            print(f"document processing status {status}: {count}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("action", choices=["validate", "apply", "inspect", "verify", "test"])
-    action = parser.parse_args().action
-    if action == "validate":
-        validate()
-    elif action == "apply":
-        apply()
-    elif action == "inspect":
+    parser.add_argument("--only", help="Target a specific migration filename")
+    args = parser.parse_args()
+    if args.action == "validate":
+        validate(target_only=args.only)
+    elif args.action == "apply":
+        apply(target_only=args.only)
+    elif args.action == "inspect":
         inspect()
-    elif action == "verify":
+    elif args.action == "verify":
         verify()
     else:
         from database_security import run
