@@ -41,6 +41,10 @@ class ProviderMetadata(BaseModel):
     name: str
     version: str
     preprocessing: list[str] = Field(default_factory=list)
+    selected_variant: str | None = None
+    quality_score: float | None = Field(default=None, ge=0, le=1)
+    quality_label: Literal["high", "medium", "low"] | None = None
+    fallback_reason: str | None = None
 
 
 class PageAnalysis(BaseModel):
@@ -60,6 +64,9 @@ class DocumentAnalysis(BaseModel):
     mime_type: Literal["application/pdf", "image/jpeg", "image/png", "image/webp"]
     page_count: int = Field(ge=1)
     pages: list[PageAnalysis]
+    clinical_provider: ProviderMetadata = Field(
+        default_factory=lambda: ProviderMetadata(name="none", version="unavailable")
+    )
 
 
 class AnalyzeResponse(BaseModel):

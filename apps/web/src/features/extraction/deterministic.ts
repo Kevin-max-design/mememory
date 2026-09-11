@@ -8,25 +8,38 @@ import type {
   RecordKind,
 } from "./types";
 import { ExtractionError } from "./types";
+import { normalizeMedicalMeasurement } from "./normalization";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const LABS: [RegExp, string][] = [
-  [/^(?:ha?emoglobin|hgb)\b/i, "Hemoglobin"],
-  [/^(?:total\s+)?wbc(?:\s+count)?\b/i, "WBC"],
-  [/^platelet(?:\s+count)?\b/i, "Platelet Count"],
+  [/^(?:ha?emoglobin|hgb|hb)\b/i, "Haemoglobin"],
+  [/^(?:(?:total\s+)?wbc(?:\s+count)?|tc)\b/i, "WBC Count"],
+  [/^(?:platelet(?:\s+count)?|platelets|plt)\b/i, "Platelet Count"],
   [/^rbc(?:\s+count)?\b/i, "RBC Count"],
-  [/^(?:hematocrit|hct|pcv)\b/i, "Hematocrit"],
+  [/^(?:ha?ematocrit|hct|pcv)\b/i, "Haematocrit/PCV"],
   [/^mcv\b/i, "MCV"], [/^mchc\b/i, "MCHC"], [/^mch\b/i, "MCH"],
-  [/^(?:fasting blood sugar|fbs)\b/i, "Fasting Blood Sugar"],
-  [/^(?:random blood sugar|rbs)\b/i, "Random Blood Sugar"],
-  [/^hba1c\b/i, "HbA1c"], [/^creatinine\b/i, "Creatinine"],
-  [/^urea\b/i, "Urea"], [/^(?:sgpt|alt)\b/i, "ALT"],
-  [/^(?:sgot|ast)\b/i, "AST"], [/^triglycerides?\b/i, "Triglycerides"],
-  [/^(?:total\s+)?cholesterol\b/i, "Cholesterol"],
+  [/^(?:fasting (?:blood sugar|plasma glucose)|fbs|fpg)\b/i, "Fasting Plasma Glucose"],
+  [/^(?:post prandial (?:plasma )?glucose|ppbs|ppg)\b/i, "Post Prandial Plasma Glucose"],
+  [/^(?:hba1c|glycosylated hemoglobin)\b/i, "HbA1c"], [/^(?:serum )?creatinine\b/i, "Creatinine"],
+  [/^urea\b/i, "Urea"],
+  [/^(?:sgot|ast)\b/i, "SGOT/AST"], [/^(?:triglycerides?|tg)\b/i, "Triglycerides"],
+  [/^(?:total\s+)?cholesterol\b/i, "Total Cholesterol"],
+  [/^total bilirubin\b/i, "Total Bilirubin"], [/^direct bilirubin\b/i, "Direct Bilirubin"],
+  [/^indirect bilirubin\b/i, "Indirect Bilirubin"], [/^(?:sgpt|alt)\b/i, "SGPT/ALT"],
+  [/^alkaline phosphatase\b/i, "Alkaline Phosphatase"], [/^total protein\b/i, "Total Protein"],
+  [/^albumin\b/i, "Albumin"], [/^globulin\b/i, "Globulin"], [/^a\/?g ratio\b/i, "A/G Ratio"],
+  [/^hdl(?: cholesterol)?\b/i, "HDL Cholesterol"], [/^ldl(?: cholesterol)?\b/i, "LDL Cholesterol"],
+  [/^vldl(?: cholesterol)?\b/i, "VLDL Cholesterol"], [/^(?:tsh|thyroid stimulating hormone)\b/i, "TSH"],
+  [/^neutrophils?\b/i, "Neutrophils"], [/^lymphocytes?\b/i, "Lymphocytes"],
+  [/^eosinophils?\b/i, "Eosinophils"], [/^monocytes?\b/i, "Monocytes"],
+  [/^urine glucose\b/i, "Urine Glucose"], [/^urine protein\b/i, "Urine Protein"],
+  [/^urine pus cells?\b/i, "Urine Pus Cells"], [/^urine rbc\b/i, "Urine RBC"],
+  [/^urine epithelial cells?\b/i, "Urine Epithelial Cells"],
+  [/^urine specific gravity\b/i, "Urine Specific Gravity"], [/^urine reaction\b/i, "Urine Reaction"],
 ];
 
 const NUMBER = "[-+]?\\d+(?:\\.\\d+)?";
-const UNIT = "(?:g/dL|mg/dL|mmol/L|mEq/L|IU/L|U/L|fL|pg|%|x?10\\^?[369]/(?:uL|µL)|cells/(?:uL|µL))";
+const UNIT = "(?:gm%|g/dl|mg/dl|mmol/L|mEq/L|IU/L|U/L|uIU/ml|fL|pg|%|x10\\^3/uL|million/cumm|/hpf|Vol%)";
 
 function fingerprint(documentId: string, kind: RecordKind, page: number, data: CandidateData, text: string) {
   return createHash("sha256")
@@ -65,20 +78,21 @@ function safeNumber(value: string): number | null {
 }
 
 function labs(documentId: string, block: ExtractionBlock, line: string) {
+  const normalized = normalizeMedicalMeasurement(line);
   for (const [label, testName] of LABS) {
-    const match = line.match(label);
+    const match = normalized.match(label);
     if (!match) continue;
-    const remainder = line.slice(match[0].length).replace(/^\s*[:=-]?\s*/, "");
-    const value = remainder.match(new RegExp(`^(${NUMBER})(?:\\s*(${UNIT}))?`, "i"));
+    const remainder = normalized.slice(match[0].length).replace(/^\s*[:=-]?\s*/, "");
+    const value = remainder.match(new RegExp(`^(<|<=|>|>=)?\\s*(${NUMBER}|Nil|Negative|Normal|Clear|Absent|Present)(?:\\s*(${UNIT}))?`, "i"));
     if (!value) return [];
     const trailing = remainder.slice(value[0].length).trim();
     const range = trailing.match(new RegExp(`(?:ref(?:erence)?(?:\\s+range)?[:\\s]*)?(${NUMBER}\\s*(?:-|–|to)\\s*${NUMBER})(?:\\s*${UNIT})?`, "i"));
     const flag = trailing.match(/\b(high|low|critical|abnormal|H|L)\b/i)?.[1] ?? null;
     return [candidate(documentId, block, "lab", "high", line, {
       test_name: testName,
-      original_value: value[1],
-      numeric_value: safeNumber(value[1]),
-      unit: value[2] ?? null,
+      original_value: `${value[1] ?? ""}${value[2]}`,
+      numeric_value: value[1] ? null : safeNumber(value[2]),
+      unit: value[3] ?? null,
       reference_range: range?.[1] ?? null,
       flag,
       specimen: null,
@@ -113,9 +127,10 @@ function medication(documentId: string, block: ExtractionBlock, line: string) {
 
 function diagnosis(documentId: string, block: ExtractionBlock, line: string) {
   const match = line.match(/^(?:diagnosis|impression|assessment|known case of|past history of|diagnosed with)\s*[:\-]?\s*(.+)$/i);
-  if (!match || !match[1].trim()) return [];
+  const name = match?.[1]?.trim() ?? "";
+  if (!name || name.length < 3 || !/[A-Za-z]{3}/.test(name) || /^[\W_]+$/.test(name)) return [];
   return [candidate(documentId, block, "diagnosis", "high", line, {
-    name: match[1].trim(), code: null, diagnosed_at: null, status: null,
+    name, code: null, diagnosed_at: null, status: null,
   })];
 }
 

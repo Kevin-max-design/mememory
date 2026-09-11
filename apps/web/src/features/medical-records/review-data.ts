@@ -21,7 +21,7 @@ export async function getReviewData(documentId: string) {
   if (error || !document) notFound();
   const [{ data: pages }, { data: blocks }, { data: records, error: recordError }] = await Promise.all([
     supabase.from("document_pages").select("id,page_number,native_text_used").eq("document_id", documentId).order("page_number"),
-    supabase.from("document_text_blocks").select("id,page_id,block_index,text,source_type").eq("document_id", documentId).order("block_index"),
+    supabase.from("document_text_blocks").select("id,page_id,block_index,text,source_type,confidence").eq("document_id", documentId).order("block_index"),
     supabase.from("medical_records").select("id,record_type,review_status,confidence,source_page_number,source_block_ids,source_text").eq("document_id", documentId).order("created_at"),
   ]);
   if (recordError) throw new Error("REVIEW_DATA_READ_FAILED");

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { DeterministicExtractionProvider, ExtractionError } from "@/features/extraction";
+import { DeterministicExtractionProvider, ExtractionError, normalizeMedicalMeasurement } from "@/features/extraction";
 
 const provider = new DeterministicExtractionProvider();
 const documentId = "20000000-0000-4000-8000-000000000002";
@@ -10,6 +10,27 @@ function extract(text: string) {
 }
 
 describe("deterministic structured extraction", () => {
+  it.each([
+    ["291 x10³/uL", "291 x10^3/uL"],
+    ["291 ×10³/µL", "291 x10^3/uL"],
+    ["291 x10^3/µL", "291 x10^3/uL"],
+    ["291 X10^3/UL", "291 x10^3/uL"],
+    ["291 x10^3/u1", "291 x10^3/uL"],
+    ["291 x 10 3 / uL", "291 x10^3/uL"],
+    ["291 x103/uL", "291 x10^3/uL"],
+    ["99 mg/d1", "99 mg/dl"],
+    ["99 mg/dI", "99 mg/dl"],
+    ["99 mg / dl", "99 mg/dl"],
+    ["13.5 gms%", "13.5 gm%"],
+    ["2 million / cumm", "2 million/cumm"],
+    ["4 /HPF", "4 /hpf"],
+  ])("normalizes a medical measurement variant: %s", (source, expected) => {
+    expect(normalizeMedicalMeasurement(source)).toBe(expected);
+  });
+
+  it("does not normalize unrelated prose", () => {
+    expect(normalizeMedicalMeasurement("Call UL office on day one")).toBe("Call UL office on day one");
+  });
   it("extracts CBC values with units and reference ranges", () => {
     const records = extract([
       "Hemoglobin 13.5 g/dL 12.0-16.0",
@@ -18,9 +39,9 @@ describe("deterministic structured extraction", () => {
       "Hematocrit 41 % 36-46",
     ].join("\n"));
     expect(records.map((record) => record.data.test_name)).toEqual([
-      "Hemoglobin", "WBC", "Platelet Count", "Hematocrit",
+      "Haemoglobin", "WBC Count", "Platelet Count", "Haematocrit/PCV",
     ]);
-    expect(records[0].data).toMatchObject({ numeric_value: 13.5, unit: "g/dL", reference_range: "12.0-16.0" });
+    expect(records[0].data).toMatchObject({ numeric_value: 13.5, unit: "g/dl", reference_range: "12.0-16.0" });
     expect(records[1].data.unit).toBe("x10^3/uL");
   });
 
@@ -67,10 +88,28 @@ describe("deterministic structured extraction", () => {
       sourceBlockIds: [blockId],
       sourceText: "Creatinine 1.0 mg/dL 0.6-1.2",
       extractionMethod: "deterministic",
-      extractionVersion: "1.0.0",
+      extractionVersion: "1.1.0",
     });
     expect(first.fingerprint).toMatch(/^[a-f0-9]{64}$/);
     expect(first.fingerprint).toBe(second.fingerprint);
+  });
+
+  it("normalizes OCR-confused units without changing source provenance", () => {
+    const result = extract("Platelets 291 ×10³/µL 150-400")[0];
+    expect(result.data).toMatchObject({ numeric_value: 291, unit: "x10^3/uL", reference_range: "150-400" });
+    expect(result.sourceText).toBe("Platelets 291 ×10³/µL 150-400");
+    expect(extract("Creatinine 1.2 mg/dI 0.6-1.3")[0].data.unit).toBe("mg/dl");
+  });
+
+  it("keeps lab values on their own rows", () => {
+    const records = extract("Haemoglobin 13.5 gm% 13.0-17.0 gm%\nPlatelet Count 291 x10^3/uL 150-400 x10^3/uL");
+    expect(records[0].data).toMatchObject({ original_value: "13.5", numeric_value: 13.5 });
+    expect(records[1].data).toMatchObject({ original_value: "291", numeric_value: 291 });
+    expect(records[0].sourceText).not.toContain("291");
+  });
+
+  it("rejects punctuation-only diagnosis candidates", () => {
+    expect(extract("Diagnosis: :")).toEqual([]);
   });
 
   it("fails explicitly for empty text or missing provenance", () => {

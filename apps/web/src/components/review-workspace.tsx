@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ReviewRecord } from "@/features/medical-records/review-data";
+import { normalizeMedicalMeasurement } from "@/features/extraction/normalization";
 
 const labels: Record<string, string> = { lab: "Lab Results", medication: "Medications", diagnosis: "Diagnoses", allergy: "Allergies", vital: "Vitals", procedure: "Procedures", doctor_note: "Doctor Notes" };
 const editable: Record<string, string[]> = {
@@ -16,7 +17,7 @@ const numericFields = new Set(["numeric_value", "secondary_value"]);
 
 export function ReviewWorkspace({ documentId, pages, blocks, records }: {
   documentId: string; pages: { id: string; page_number: number; native_text_used: boolean }[];
-  blocks: { id: string; page_id: string; block_index: number; text: string; source_type: string }[];
+  blocks: { id: string; page_id: string; block_index: number; text: string; source_type: string; confidence: number | null }[];
   records: ReviewRecord[];
 }) {
   const router = useRouter();
@@ -25,6 +26,10 @@ export function ReviewWorkspace({ documentId, pages, blocks, records }: {
   const [message, setMessage] = useState("");
   const selectedRecord = records.find((record) => record.id === selected);
   const grouped = useMemo(() => Object.entries(labels).map(([kind, label]) => [kind, label, records.filter((record) => record.recordType === kind)] as const).filter(([, , group]) => group.length), [records]);
+  const lowConfidencePages = useMemo(() => pages.filter((page) => {
+    const values = blocks.filter((block) => block.page_id === page.id && block.confidence !== null).map((block) => block.confidence as number);
+    return values.length > 0 && values.reduce((sum, value) => sum + value, 0) / values.length < 0.5;
+  }).map((page) => page.page_number), [blocks, pages]);
 
   async function submit(record: ReviewRecord, action: "approve" | "reject" | "correct", form?: HTMLFormElement) {
     setMessage("Saving…");
@@ -48,6 +53,7 @@ export function ReviewWorkspace({ documentId, pages, blocks, records }: {
     <section className="rounded-2xl border border-slate-200 bg-white p-5">
       <h2 className="text-lg font-semibold">Source text</h2>
       <p className="mt-1 text-sm text-slate-500">Select “Show source” to locate the exact page and text block. Visual PDF highlighting is not available yet.</p>
+      {lowConfidencePages.length ? <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Low-confidence OCR on page{lowConfidencePages.length === 1 ? "" : "s"} {lowConfidencePages.join(", ")}. Verify candidates against the original document before approval.</div> : null}
       {pages.map((page) => <div className="mt-5" key={page.id}>
         <h3 className="font-semibold">Page {page.page_number} · {page.native_text_used ? "Native text" : "OCR"}</h3>
         <div className="mt-2 space-y-2">{blocks.filter((block) => block.page_id === page.id).map((block) => {
@@ -60,13 +66,13 @@ export function ReviewWorkspace({ documentId, pages, blocks, records }: {
       <div><h2 className="text-lg font-semibold">Extracted data</h2><p aria-live="polite" className="mt-1 text-sm text-teal-700">{message}</p></div>
       {grouped.map(([kind, label, group]) => <div key={kind}><h3 className="mb-2 font-semibold">{label}</h3><div className="space-y-3">
         {group.map((record) => <article className="rounded-xl border border-slate-200 bg-white p-4" id={`record-${record.id}`} key={record.id}>
-          <div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold capitalize">{record.reviewStatus}</span><span className="text-xs text-slate-500">{record.confidence >= .8 ? "High" : record.confidence >= .5 ? "Medium" : "Low"} confidence</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold capitalize">{record.reviewStatus === "extracted" ? "Needs review" : record.reviewStatus}</span><span className="text-xs text-slate-500">{record.confidence >= .8 ? "High" : record.confidence >= .5 ? "Medium" : "Low"} confidence</span></div>
           {editing === record.id ? <form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); void submit(record, "correct", event.currentTarget); }}>
             {editable[record.recordType].map((field) => <label className="text-sm capitalize" key={field}>{field.replaceAll("_", " ")}<input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" defaultValue={record.values[field] ?? ""} name={field} type={numericFields.has(field) ? "number" : field === "performed_at" ? "date" : "text"} step="any" /></label>)}
             <div className="flex gap-2 sm:col-span-2"><button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white">Save correction</button><button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setEditing(null)} type="button">Cancel</button></div>
           </form> : <dl className="mt-3 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">{Object.entries(record.values).filter(([, value]) => value !== null && value !== "").map(([key, value]) => <div key={key}><dt className="text-slate-500 capitalize">{key.replaceAll("_", " ")}</dt><dd>{String(value)}</dd></div>)}</dl>}
           <div className="mt-4 flex flex-wrap gap-2"><button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" onClick={() => void submit(record, "approve")}>Approve</button><button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setEditing(record.id)}>Edit / Correct</button><button className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-700" onClick={() => void submit(record, "reject")}>Reject</button><button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setSelected(record.id)}>Show source</button></div>
-          {selected === record.id ? <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm"><strong>Page {record.sourcePageNumber}</strong><p className="mt-1 whitespace-pre-wrap">{record.sourceText}</p><p className="mt-2 text-xs text-slate-500">Source blocks: {record.sourceBlockIds.join(", ")}</p></div> : null}
+          {selected === record.id ? <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm"><strong>Page {record.sourcePageNumber}</strong><p className="mt-1 whitespace-pre-wrap">{record.sourceText}</p>{normalizeMedicalMeasurement(record.sourceText) !== record.sourceText ? <p className="mt-2 text-xs text-slate-500">Normalized for parsing: {normalizeMedicalMeasurement(record.sourceText)}</p> : null}<p className="mt-2 text-xs text-slate-500">Source blocks: {record.sourceBlockIds.join(", ")}</p></div> : null}
         </article>)}
       </div></div>)}
     </section>

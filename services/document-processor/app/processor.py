@@ -7,6 +7,7 @@ from io import BytesIO
 import fitz
 from PIL import Image, UnidentifiedImageError
 
+from app.clinical import ClinicalNlpProvider, NoopClinicalNlpProvider
 from app.errors import (
     ProcessorError,
     empty_file_error,
@@ -88,8 +89,13 @@ def _native_page(page: fitz.Page, page_number: int) -> PageAnalysis:
 
 
 class DocumentProcessor:
-    def __init__(self, ocr_provider: OCRProvider | None = None):
+    def __init__(
+        self,
+        ocr_provider: OCRProvider | None = None,
+        clinical_provider: ClinicalNlpProvider | None = None,
+    ):
         self.ocr_provider = ocr_provider or TesseractOCRProvider()
+        self.clinical_provider = clinical_provider or NoopClinicalNlpProvider()
 
     def _ocr_image(self, image: Image.Image, page_number: int, rotation: int = 0) -> PageAnalysis:
         prepared = preprocess_image(image)
@@ -194,9 +200,17 @@ class DocumentProcessor:
         except Exception as error:
             raise invalid_file_error() from error
 
+        enhancement = self.clinical_provider.enhance(
+            "\n".join(page.full_text for page in pages)
+        )
         return DocumentAnalysis(
             document_id=request.document_id,
             mime_type=request.mime_type,
             page_count=len(pages),
             pages=pages,
+            clinical_provider=ProviderMetadata(
+                name=enhancement.provider,
+                version=enhancement.version,
+                preprocessing=[enhancement.status],
+            ),
         )

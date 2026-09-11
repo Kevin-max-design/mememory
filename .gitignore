@@ -12,3 +12,5 @@ coverage/
 .supabase-ca.crt
 
 *.egg-info/
+.paddleocr/
+services/document-processor/models/

@@ -9,7 +9,7 @@ for the discovery results and architecture.
 
 ## Prerequisites
 
-Node >=22, npm, Python >=3.11, and Tesseract for the future OCR pipeline.
+Node >=22, npm, Python 3.10.16, and Tesseract for the local OCR pipeline.
 A separate **development** Supabase project is required for database integration.
 
 ## Environment
@@ -19,6 +19,13 @@ anon key, and service-role key. Generate a random processor secret of at least 3
 characters. Never commit credentials. Put the same DOCUMENT_PROCESSOR_SECRET in
 services/document-processor/.env. Both services reject missing required configuration.
 Ollama is optional; leave its variables unset if unused.
+
+PaddleOCR and OpenMed are optional local providers. Keep `ENABLE_PADDLEOCR=false`
+and `ENABLE_OPENMED=false` for the dependency-free fallback path. PaddleOCR is lazy
+loaded and falls back to Tesseract if its import or local model initialization fails.
+OpenMed 2.3 is used only through verified deterministic clinical utilities; MedMemory
+retains candidate validation, provenance, and review. Do not install the multimodal
+extra. Downloaded PaddleOCR/model assets must stay outside git.
 
 ## Install
 

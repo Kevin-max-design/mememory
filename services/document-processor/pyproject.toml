@@ -1,7 +1,7 @@
 [project]
 name = "medmemory-document-processor"
 version = "0.1.0"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
   "fastapi>=0.115,<1",
   "numpy>=2.2,<3",
@@ -14,9 +14,11 @@ dependencies = [
 ]
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "httpx>=0.28,<1", "ruff>=0.11,<1"]
+openmed = ["openmed==2.3.0"]
+paddleocr = ["paddleocr>=2.7,<4"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["app/tests"]
 [tool.ruff]
-target-version = "py311"
+target-version = "py310"
 line-length = 100

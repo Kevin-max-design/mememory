@@ -49,9 +49,18 @@ export const processorResponseSchema = z
             name: z.string().min(1).max(100),
             version: z.string().min(1).max(100),
             preprocessing: z.array(z.string().max(100)).max(20),
+            selected_variant: z.string().max(100).nullable().optional(),
+            quality_score: z.number().min(0).max(1).nullable().optional(),
+            quality_label: z.enum(["high", "medium", "low"]).nullable().optional(),
+            fallback_reason: z.string().max(100).nullable().optional(),
           }),
         }),
       ),
+      clinical_provider: z.object({
+        name: z.string().max(100),
+        version: z.string().max(100),
+        preprocessing: z.array(z.string().max(100)).max(20),
+      }).passthrough().optional(),
     }),
   })
   .refine((response) => response.data.page_count === response.data.pages.length, {
