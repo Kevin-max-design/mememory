@@ -5,7 +5,7 @@ import {
   ExtractionError,
   type ExtractionCandidate,
   type ExtractionProvider,
-} from "@/features/extraction";
+} from "../features/extraction";
 
 const boundingBoxSchema = z
   .object({

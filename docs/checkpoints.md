@@ -180,3 +180,37 @@ for deployment; processor payloads are base64 and memory-bound; English Tesserac
 default; structured medical extraction, review UI, and production orchestration are out
 of scope. The authentication migration remains pending.
 NEXT PHASE: stop. Do not begin Phase 7 without explicit instruction.
+
+## Phase 7 — Structured medical extraction
+STATUS: PASS
+IMPLEMENTED: deterministic, versioned provider abstraction for labs, medications,
+explicit diagnoses, explicit allergies, vitals, procedures, and labelled doctor notes;
+stable SHA-256 fingerprints; confidence; mandatory document/page/block provenance;
+optional unavailable-safe Ollama interface; atomic OCR plus extraction persistence;
+service-role-only execution; idempotent completion; protection for reviewed records.
+FILES CHANGED: apps/web/src/features/extraction; apps/web/src/test/extraction.test.ts;
+apps/web/src/workers/document-worker.ts, documents.ts, e2e.ts;
+apps/web/src/types/database.types.ts; scripts/document_worker_database.py;
+supabase/migrations/202609110001_structured_extraction.sql; README.md;
+docs/checkpoints.md.
+COMMANDS RUN: database.py verify; database.py apply --only
+202609110001_structured_extraction.sql; document_worker_database.py;
+npm run test:worker:e2e; npm test; npm run lint; npm run typecheck; npm run build;
+processor pytest; Ruff; migration parse; browser-bundle secret scan; git diff --check.
+TEST RESULTS: 40 web tests PASS; 15 processor tests PASS; lint, typecheck, build,
+Ruff, migration parsing, and secret scan PASS. Seven rollback-only DB checks PASS.
+One isolated native-PDF integration produced 1 page, 7 blocks, and 10 extracted records
+covering lab, medication, diagnosis, allergy, vital, and procedure records. Provenance
+and fingerprints verified; document remained needs_review; job completed.
+ISSUES FOUND: the first E2E launch stopped before remote writes because standalone tsx
+could not resolve a runtime path alias. Python dependencies emit seven upstream
+deprecation warnings.
+FIXES APPLIED: changed the extraction runtime import to a relative path; rerun passed.
+The targeted migration alone was applied. Cleanup restored 2 users, 2 storage objects,
+2 queued documents, 2 queued jobs, and zero page/block/medical/child extraction rows.
+The pre-existing jobs remained queued and the authentication migration remains pending.
+REMAINING LIMITATIONS: deterministic patterns cover common labelled formats rather than
+all clinical documents; dates and complex multi-block relationships remain conservative;
+Ollama is an unavailable-safe interface only; English OCR is the default; no review UI,
+Ask MedMemory, or Doctor Brief exists yet.
+NEXT PHASE: stop. Do not begin Phase 8 without explicit instruction.
