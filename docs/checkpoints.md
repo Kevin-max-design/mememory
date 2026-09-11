@@ -277,3 +277,35 @@ REMAINING LIMITATIONS: date range filtering is not included; documents without m
 dates use labelled upload dates; dynamic events are computed at request time rather than
 persisted; no event editing exists in this phase.
 NEXT PHASE: stop. Do not begin Phase 10 without explicit instruction.
+
+## Phase 10 — Medical records search
+STATUS: PASS
+IMPLEMENTED: authenticated server-rendered `/search`; dashboard shortcut; bounded
+query validation; grouped document, source-text, and reviewed-fact results; category
+filters; result counts; safe empty/no-result states; confidence/review badges; source
+document and exact provenance links.
+ARCHITECTURE: direct PostgreSQL `ilike` queries through the user's Supabase session.
+Results are capped per source, deduplicated, and capped at 60 overall. Structured child
+queries run in parallel and medical-record/document metadata is fetched in batches.
+No vector service, LLM, persisted search event, service role, or Phase 10 migration.
+SEARCHABLE ENTITIES: document display/original name, type; OCR/native blocks; reviewed
+labs, medications, diagnoses, allergies, vitals, procedures, and doctor notes.
+TRUST: only approved/corrected facts are returned; extracted and rejected facts are
+excluded from normal search. Source text remains clearly labelled as source text.
+FILTERS: All, Documents, Text blocks, Labs, Medications, Diagnoses, Allergies, Vitals,
+Procedures, Doctor notes.
+FILES CHANGED: apps/web/src/app/search/page.tsx; features/search/model.ts, data.ts;
+test/search.test.ts; dashboard/page.tsx; workers/e2e.ts; docs/checkpoints.md.
+COMMANDS RUN: npm run test:worker:e2e -- --search; database.py verify; npm test;
+npm run lint; npm run typecheck; npm run build; pytest; Ruff; browser bundle secret
+scan; git diff --check.
+TEST RESULTS: 53 web tests PASS; 15 processor tests PASS; lint, typecheck, production
+build, Ruff, secret scan, and diff check PASS. Live isolated flow verified searches for
+document name, OCR phrase, lab test, medication, and diagnosis plus provenance link.
+CLEANUP: restored 2 users, 2 storage objects, 2 queued documents, 2 queued jobs, and
+zero page/block/medical/child rows. Existing records were unchanged.
+SECURITY: authenticated server data loader, explicit owner filters plus RLS, strict
+80-character query validation, no raw text logging, no server secrets in client output.
+REMAINING LIMITATIONS: literal substring matching only; no ranking, stemming, typo
+tolerance, date filters, pagination UI, or semantic search. Overall results are capped.
+NEXT PHASE: stop. Do not begin Phase 11 without explicit instruction.

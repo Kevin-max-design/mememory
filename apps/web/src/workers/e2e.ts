@@ -168,7 +168,7 @@ async function main() {
     }
 
     let reviewResult: Record<string, unknown> = {};
-    if (process.argv.includes("--review") || process.argv.includes("--timeline")) {
+    if (process.argv.includes("--review") || process.argv.includes("--timeline") || process.argv.includes("--search")) {
       const userClient = createClient<Database>(
         parsed.data.NEXT_PUBLIC_SUPABASE_URL,
         parsed.data.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
@@ -215,6 +215,26 @@ async function main() {
         const timeline = buildTimeline([{ id: documentId, displayName: "Synthetic worker fixture", documentType: null, eventDate: null, createdAt: new Date().toISOString(), processingStatus: "completed" }], timelineRecords);
         if (timeline.length !== 11 || timeline.some((event) => event.reviewStatus === "extracted" || event.reviewStatus === "rejected") || timeline.some((event) => !event.sourceHref.includes(documentId))) throw new Error("SYNTHETIC_TIMELINE_ASSERTION_FAILED");
         reviewResult = { ...reviewResult, timeline: "PASS", timelineEvents: timeline.length, sourceLinks: "verified" };
+      }
+      if (process.argv.includes("--search")) {
+        const [documentSearch, textSearch, labSearch, medicationSearch, diagnosisSearch] = await Promise.all([
+          userClient.from("documents").select("id").ilike("display_name", "%Synthetic worker%"),
+          userClient.from("document_text_blocks").select("id,document_id").ilike("text", "%Hemoglobin%"),
+          userClient.from("lab_results").select("medical_record_id").ilike("test_name", "%Hemoglobin%"),
+          userClient.from("medications").select("medical_record_id").ilike("name", "%Metformin%"),
+          userClient.from("diagnoses").select("medical_record_id").ilike("name", "%diabetes%"),
+        ]);
+        const documentMatches = documentSearch.data ?? [];
+        const textMatches = textSearch.data ?? [];
+        const labMatches = labSearch.data ?? [];
+        if ([documentSearch, textSearch, labSearch, medicationSearch, diagnosisSearch].some((search) => search.error || (search.data?.length ?? 0) !== 1) || documentMatches[0]?.id !== documentId || textMatches[0]?.document_id !== documentId) {
+          throw new Error("SYNTHETIC_SEARCH_ASSERTION_FAILED");
+        }
+        const sourceRecordId = labMatches[0]?.medical_record_id;
+        if (!sourceRecordId) throw new Error("SYNTHETIC_SEARCH_SOURCE_LINK_FAILED");
+        const sourceHref = `/records/${documentId}/review#record-${sourceRecordId}`;
+        if (!sourceHref.includes(documentId) || !sourceHref.endsWith(sourceRecordId)) throw new Error("SYNTHETIC_SEARCH_SOURCE_LINK_FAILED");
+        reviewResult = { ...reviewResult, search: "PASS", searchesVerified: 5, searchSourceLink: "verified" };
       }
     }
 
