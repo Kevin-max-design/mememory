@@ -29,6 +29,7 @@ def _with_quality(result: OCRResult) -> OCRResult:
     quality = score_ocr(result.blocks)
     result.provider.quality_score = quality.score
     result.provider.quality_label = quality.label  # type: ignore[assignment]
+    result.provider.quality_reason = quality.reason
     return result
 
 

@@ -20,6 +20,7 @@ export type ExtractionBlock = {
   id: string;
   pageNumber: number;
   text: string;
+  region?: "main_content" | "likely_header" | "likely_footer" | "disclaimer";
 };
 
 export type CandidateData = Record<string, string | number | null>;

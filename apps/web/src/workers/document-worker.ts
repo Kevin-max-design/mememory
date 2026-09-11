@@ -43,6 +43,7 @@ export const processorResponseSchema = z
               text: z.string().min(1).max(1_000_000),
               confidence: z.number().min(0).max(1).nullable(),
               bbox: boundingBoxSchema,
+              region: z.enum(["main_content", "likely_header", "likely_footer", "disclaimer"]).optional(),
             }),
           ),
           provider: z.object({
@@ -52,6 +53,7 @@ export const processorResponseSchema = z
             selected_variant: z.string().max(100).nullable().optional(),
             quality_score: z.number().min(0).max(1).nullable().optional(),
             quality_label: z.enum(["high", "medium", "low"]).nullable().optional(),
+            quality_reason: z.string().max(300).nullable().optional(),
             fallback_reason: z.string().max(100).nullable().optional(),
           }),
         }),
@@ -168,14 +170,30 @@ function completionPayload(
   }));
   const candidates = extractionProvider.extract(
     response.data.document_id,
-    pages.flatMap((page) =>
-      page.blocks.map((block) => ({
-        id: block.id,
+    response.data.pages.flatMap((page, pageIndex) =>
+      page.blocks.map((block, blockIndex) => ({
+        id: pages[pageIndex].blocks[blockIndex].id,
         pageNumber: page.page_number,
         text: block.text,
+        region: block.region,
       })),
     ),
   );
+  if (process.env.ENABLE_OCR_DEBUG === "true") {
+    for (const page of response.data.pages) {
+      console.info("ocr_extraction_diagnostic", {
+        documentId: response.data.document_id,
+        pageNumber: page.page_number,
+        provider: page.provider.name,
+        fallback: page.provider.fallback_reason ?? "none",
+        variant: page.provider.selected_variant ?? "default",
+        quality: page.provider.quality_score ?? null,
+        blockCount: page.blocks.length,
+        candidateCount: candidates.filter((candidate) => candidate.sourcePageNumber === page.page_number).length,
+        lowConfidenceReason: page.provider.quality_reason ?? null,
+      });
+    }
+  }
   const ocrPage = response.data.pages.find((page) => page.source === "ocr");
   return {
     pages,

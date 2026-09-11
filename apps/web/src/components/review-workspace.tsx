@@ -15,10 +15,24 @@ const editable: Record<string, string[]> = {
 };
 const numericFields = new Set(["numeric_value", "secondary_value"]);
 
-export function ReviewWorkspace({ documentId, pages, blocks, records }: {
-  documentId: string; pages: { id: string; page_number: number; native_text_used: boolean }[];
-  blocks: { id: string; page_id: string; block_index: number; text: string; source_type: string; confidence: number | null }[];
+type ReviewBlock = { id: string; page_id: string; block_index: number; text: string; source_type: string; confidence: number | null; bbox: unknown };
+
+function blockRegion(block: ReviewBlock, pageHeight: number) {
+  const box = block.bbox as { y0?: unknown; y1?: unknown } | null;
+  const y0 = typeof box?.y0 === "number" ? box.y0 : null;
+  const y1 = typeof box?.y1 === "number" ? box.y1 : null;
+  if (/verified by|approved by|results? (?:relate|apply) only|disclaimer/i.test(block.text)) return "Disclaimer";
+  if (y1 !== null && y1 <= pageHeight * 0.08) return "Likely header";
+  if (y0 !== null && y0 >= pageHeight * 0.92) return "Likely footer";
+  return "Main content";
+}
+
+export function ReviewWorkspace({ documentId, pages, blocks, records, previewUrl, mimeType }: {
+  documentId: string; pages: { id: string; page_number: number; native_text_used: boolean; width: number; height: number }[];
+  blocks: ReviewBlock[];
   records: ReviewRecord[];
+  previewUrl: string | null;
+  mimeType: string;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState(records[0]?.id ?? "");
@@ -51,14 +65,17 @@ export function ReviewWorkspace({ documentId, pages, blocks, records }: {
 
   return <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
     <section className="rounded-2xl border border-slate-200 bg-white p-5">
-      <h2 className="text-lg font-semibold">Source text</h2>
-      <p className="mt-1 text-sm text-slate-500">Select “Show source” to locate the exact page and text block. Visual PDF highlighting is not available yet.</p>
+      <h2 className="text-lg font-semibold">Original document and source text</h2>
+      <p className="mt-1 text-sm text-slate-500">The preview uses a five-minute signed link to this private document. Select “Show source” to jump to its page.</p>
+      {previewUrl ? <iframe className="mt-4 h-[560px] w-full rounded-lg border bg-slate-50" src={`${previewUrl}${mimeType === "application/pdf" ? `#page=${selectedRecord?.sourcePageNumber ?? 1}` : ""}`} title="Private original document preview" /> : <div className="mt-4 rounded-lg border border-dashed p-6 text-center text-sm text-slate-500">The private preview is temporarily unavailable. Reload to request a new signed link.</div>}
       {lowConfidencePages.length ? <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Low-confidence OCR on page{lowConfidencePages.length === 1 ? "" : "s"} {lowConfidencePages.join(", ")}. Verify candidates against the original document before approval.</div> : null}
       {pages.map((page) => <div className="mt-5" key={page.id}>
         <h3 className="font-semibold">Page {page.page_number} · {page.native_text_used ? "Native text" : "OCR"}</h3>
+        <p className="mt-1 text-xs text-slate-500">{blocks.filter((block) => block.page_id === page.id).length} text blocks · {records.some((record) => record.sourcePageNumber === page.page_number) ? `${records.filter((record) => record.sourcePageNumber === page.page_number).length} candidates` : "No reliable candidates found on this page"}</p>
         <div className="mt-2 space-y-2">{blocks.filter((block) => block.page_id === page.id).map((block) => {
           const active = selectedRecord?.sourceBlockIds.includes(block.id);
-          return <p className={`rounded-lg border p-3 text-sm whitespace-pre-wrap ${active ? "border-teal-500 bg-teal-50" : "border-slate-200"}`} key={block.id}>{block.text}</p>;
+          const region = blockRegion(block, page.height);
+          return <div className={`rounded-lg border p-3 text-sm ${active ? "border-teal-500 bg-teal-50" : "border-slate-200"}`} key={block.id}><div className="mb-2 flex flex-wrap gap-2 text-xs text-slate-500"><span>{block.source_type === "native_pdf" ? "Native text" : "OCR"}</span><span>{region}</span>{block.confidence !== null ? <span>{Math.round(block.confidence * 100)}% confidence</span> : null}</div><p className="whitespace-pre-wrap">{block.text}</p>{normalizeMedicalMeasurement(block.text) !== block.text ? <p className="mt-2 border-t pt-2 text-xs text-slate-500">Normalized for extraction: {normalizeMedicalMeasurement(block.text)}</p> : null}</div>;
         })}</div>
       </div>)}
     </section>

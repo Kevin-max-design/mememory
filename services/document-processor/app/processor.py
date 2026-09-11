@@ -15,6 +15,7 @@ from app.errors import (
     pdf_render_error,
     unsupported_type_error,
 )
+from app.layout import classify_document_regions, reconstruct_rows
 from app.ocr import OCRProvider, TesseractOCRProvider
 from app.preprocessing import preprocess_image
 from app.schemas import (
@@ -102,6 +103,7 @@ class DocumentProcessor:
         result = self.ocr_provider.extract(
             prepared.normalized, page_number, prepared.operations
         )
+        blocks = reconstruct_rows(result.blocks) if result.provider.name == "paddleocr" else result.blocks
         return PageAnalysis(
             page_number=page_number,
             width=prepared.original.width,
@@ -109,8 +111,8 @@ class DocumentProcessor:
             rotation=rotation,
             skew_angle=prepared.skew_angle,
             source="ocr",
-            full_text=result.full_text,
-            blocks=result.blocks,
+            full_text="\n".join(block.text for block in blocks),
+            blocks=blocks,
             provider=result.provider,
         )
 
@@ -200,6 +202,7 @@ class DocumentProcessor:
         except Exception as error:
             raise invalid_file_error() from error
 
+        classify_document_regions(pages)
         enhancement = self.clinical_provider.enhance(
             "\n".join(page.full_text for page in pages)
         )

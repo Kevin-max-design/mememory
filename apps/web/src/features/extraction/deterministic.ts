@@ -194,6 +194,7 @@ export class DeterministicExtractionProvider implements ExtractionProvider {
     }
     const found: ExtractionCandidate[] = [];
     for (const block of blocks) {
+      if (block.region && block.region !== "main_content") continue;
       for (const rawLine of block.text.split(/\r?\n/)) {
         const line = rawLine.trim();
         if (!line) continue;

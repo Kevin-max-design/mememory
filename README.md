@@ -27,6 +27,22 @@ OpenMed 2.3 is used only through verified deterministic clinical utilities; MedM
 retains candidate validation, provenance, and review. Do not install the multimodal
 extra. Downloaded PaddleOCR/model assets must stay outside git.
 
+### Local OCR benchmark
+
+The benchmark reads one local PDF, writes nothing to Supabase or disk, and prints only
+page-level diagnostics without document text:
+
+```sh
+npm run benchmark:ocr -- /absolute/path/to/report.pdf
+```
+
+PaddleOCR model downloads are intentionally manual. When models are absent, the command
+stops before inference and prints the exact initialization command. After the models are
+downloaded, set `ENABLE_PADDLEOCR=true` in the processor's ignored local `.env` file.
+`ENABLE_OCR_DEBUG=true` enables identifiers and aggregate page diagnostics; it never logs
+OCR text. The processor labels likely page-edge/disclaimer noise for extraction and
+reconstructs PaddleOCR table cells by vertical geometry.
+
 ## Install
 
 ```sh

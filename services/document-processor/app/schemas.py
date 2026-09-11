@@ -35,6 +35,7 @@ class TextBlock(BaseModel):
     text: str = Field(min_length=1)
     confidence: float | None = Field(default=None, ge=0, le=1)
     bbox: BoundingBox
+    region: Literal["main_content", "likely_header", "likely_footer", "disclaimer"] = "main_content"
 
 
 class ProviderMetadata(BaseModel):
@@ -44,6 +45,7 @@ class ProviderMetadata(BaseModel):
     selected_variant: str | None = None
     quality_score: float | None = Field(default=None, ge=0, le=1)
     quality_label: Literal["high", "medium", "low"] | None = None
+    quality_reason: str | None = None
     fallback_reason: str | None = None
 
 

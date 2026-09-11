@@ -16,15 +16,18 @@ export type ReviewRecord = {
 export async function getReviewData(documentId: string) {
   const { supabase, user } = await requireUser();
   const { data: document, error } = await supabase.from("documents")
-    .select("id,display_name,document_type,event_date,mime_type,file_size,processing_status,created_at")
+    .select("id,display_name,document_type,event_date,mime_type,file_size,processing_status,created_at,storage_path")
     .eq("id", documentId).eq("user_id", user.id).maybeSingle();
   if (error || !document) notFound();
   const [{ data: pages }, { data: blocks }, { data: records, error: recordError }] = await Promise.all([
-    supabase.from("document_pages").select("id,page_number,native_text_used").eq("document_id", documentId).order("page_number"),
-    supabase.from("document_text_blocks").select("id,page_id,block_index,text,source_type,confidence").eq("document_id", documentId).order("block_index"),
+    supabase.from("document_pages").select("id,page_number,native_text_used,width,height").eq("document_id", documentId).order("page_number"),
+    supabase.from("document_text_blocks").select("id,page_id,block_index,text,source_type,confidence,bbox").eq("document_id", documentId).order("block_index"),
     supabase.from("medical_records").select("id,record_type,review_status,confidence,source_page_number,source_block_ids,source_text").eq("document_id", documentId).order("created_at"),
   ]);
   if (recordError) throw new Error("REVIEW_DATA_READ_FAILED");
+  const { data: signedPreview } = await supabase.storage
+    .from("medical-records")
+    .createSignedUrl(document.storage_path, 300);
   const ids = records?.map((record) => record.id) ?? [];
   const empty = { data: [] as Record<string, unknown>[] };
   const childResults = ids.length ? await Promise.all([
@@ -48,6 +51,7 @@ export async function getReviewData(documentId: string) {
   }
   return {
     document,
+    previewUrl: signedPreview?.signedUrl ?? null,
     pages: pages ?? [],
     blocks: blocks ?? [],
     records: (records ?? []).map((record): ReviewRecord => ({

@@ -15,6 +15,14 @@ UNIT_PATTERN = re.compile(
     r"(?:mg|g|mmol|meq|iu|u|fl|pg)\s*/\s*(?:dl|l|ml)|%|x\s*10\^?\d\s*/\s*[uµμ]l",
     re.IGNORECASE,
 )
+BOILERPLATE_PATTERN = re.compile(
+    r"(?:verified by|approved by|results? (?:relate|apply) only|www\.|@|\bphone\b|\btel\b|\bpage\s+\d+)",
+    re.IGNORECASE,
+)
+ROW_PATTERN = re.compile(
+    r"[A-Za-z][A-Za-z ]{2,}\s+<?\d+(?:\.\d+)?\s*(?:mg/dl|g/dl|gm%|%|x\s*10|uIU/ml)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +34,7 @@ class QualityScore:
     medical_keywords: int
     numeric_unit_patterns: int
     garbage_ratio: float
+    reason: str | None
 
 
 def score_ocr(blocks: list[TextBlock]) -> QualityScore:
@@ -36,6 +45,8 @@ def score_ocr(blocks: list[TextBlock]) -> QualityScore:
     mean_confidence = sum(confidences) / len(confidences) if confidences else None
     medical = sum(word.lower() in MEDICAL_WORDS for word in meaningful)
     unit_count = len(UNIT_PATTERN.findall(" ".join(words)))
+    boilerplate = len(BOILERPLATE_PATTERN.findall(" ".join(words)))
+    row_signals = len(ROW_PATTERN.findall(" ".join(words)))
     punctuation = sum(not any(c.isalnum() for c in token) for token in tokens)
     nonsense = sum(
         len(word) > 4 and (sum(c.isalpha() for c in word) / len(word) < 0.35)
@@ -45,7 +56,17 @@ def score_ocr(blocks: list[TextBlock]) -> QualityScore:
     garbage_ratio = (punctuation + nonsense + repeats) / max(len(tokens), 1)
     confidence_part = (mean_confidence if mean_confidence is not None else 0.55) * 0.55
     word_part = min(len(meaningful) / 20, 1) * 0.2
-    signal_part = min((medical + unit_count) / 4, 1) * 0.2
-    score = max(0.0, min(1.0, confidence_part + word_part + signal_part - garbage_ratio * 0.35))
+    signal_part = min((medical + unit_count + row_signals * 2) / 4, 1) * 0.2
+    boilerplate_penalty = min(boilerplate / max(len(blocks), 1), 1) * 0.2
+    score = max(0.0, min(1.0, confidence_part + word_part + signal_part - garbage_ratio * 0.35 - boilerplate_penalty))
     label = "high" if score >= 0.72 else "medium" if score >= 0.45 else "low"
-    return QualityScore(round(score, 4), label, mean_confidence, len(meaningful), medical, unit_count, round(garbage_ratio, 4))
+    reasons: list[str] = []
+    if mean_confidence is not None and mean_confidence < 0.5:
+        reasons.append("low_mean_confidence")
+    if len(meaningful) < 5:
+        reasons.append("too_few_meaningful_words")
+    if garbage_ratio > 0.3:
+        reasons.append("high_garbage_ratio")
+    if medical + unit_count == 0:
+        reasons.append("no_medical_or_measurement_signal")
+    return QualityScore(round(score, 4), label, mean_confidence, len(meaningful), medical, unit_count, round(garbage_ratio, 4), ",".join(reasons) or None)

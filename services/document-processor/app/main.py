@@ -1,4 +1,5 @@
 """Stateless internal document processing service; never logs request bodies."""
+import logging
 import secrets
 from contextlib import asynccontextmanager
 
@@ -17,6 +18,8 @@ from app.errors import ProcessorError
 from app.ocr import CompositeOCRProvider, PaddleOCRProvider, TesseractOCRProvider
 from app.processor import DocumentProcessor
 from app.schemas import AnalyzeRequest, AnalyzeResponse
+
+logger = logging.getLogger("medmemory.processor")
 
 
 class Settings(BaseSettings):
@@ -94,4 +97,18 @@ def health():
 )
 def analyze_document(payload: AnalyzeRequest, request: Request):
     analysis = request.app.state.processor.analyze(payload)
+    if request.app.state.settings.enable_ocr_debug:
+        for page in analysis.pages:
+            logger.info(
+                "ocr_diagnostic document_id=%s page=%s provider=%s fallback=%s variant=%s "
+                "quality=%s blocks=%s low_reason=%s",
+                analysis.document_id,
+                page.page_number,
+                page.provider.name,
+                page.provider.fallback_reason or "none",
+                page.provider.selected_variant or "default",
+                page.provider.quality_score if page.provider.quality_score is not None else "native",
+                len(page.blocks),
+                page.provider.quality_reason or "none",
+            )
     return AnalyzeResponse(data=analysis)
