@@ -10,6 +10,7 @@ import {
   workerEnvironmentSchema,
 } from "./documents";
 import { buildTimeline, type TimelineRecord } from "../features/timeline/builder";
+import { DeterministicQAProvider, type QAEvidence } from "../features/ask/provider";
 
 const webDirectory = fileURLToPath(new URL("../../", import.meta.url));
 const repositoryDirectory = fileURLToPath(new URL("../../../../", import.meta.url));
@@ -168,7 +169,7 @@ async function main() {
     }
 
     let reviewResult: Record<string, unknown> = {};
-    if (process.argv.includes("--review") || process.argv.includes("--timeline") || process.argv.includes("--search")) {
+    if (process.argv.includes("--review") || process.argv.includes("--timeline") || process.argv.includes("--search") || process.argv.includes("--ask")) {
       const userClient = createClient<Database>(
         parsed.data.NEXT_PUBLIC_SUPABASE_URL,
         parsed.data.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
@@ -196,8 +197,8 @@ async function main() {
         throw new Error("SYNTHETIC_REVIEW_CORRECTION_FAILED");
       }
       reviewResult = { review: "PASS", finalDocumentStatus: finalStatus, provenanceAfterCorrection: "verified" };
-      if (process.argv.includes("--timeline")) {
-        const { data: reviewed, error: reviewedError } = await admin.from("medical_records").select("id,document_id,record_type,review_status,event_date").eq("document_id", documentId);
+      if (process.argv.includes("--timeline") || process.argv.includes("--ask")) {
+        const { data: reviewed, error: reviewedError } = await admin.from("medical_records").select("id,document_id,record_type,review_status,event_date,source_page_number,source_text").eq("document_id", documentId);
         const recordIds = reviewed?.map((record) => record.id) ?? [];
         const childResults = await Promise.all([
           admin.from("lab_results").select("*").in("medical_record_id", recordIds), admin.from("medications").select("*").in("medical_record_id", recordIds),
@@ -215,6 +216,22 @@ async function main() {
         const timeline = buildTimeline([{ id: documentId, displayName: "Synthetic worker fixture", documentType: null, eventDate: null, createdAt: new Date().toISOString(), processingStatus: "completed" }], timelineRecords);
         if (timeline.length !== 11 || timeline.some((event) => event.reviewStatus === "extracted" || event.reviewStatus === "rejected") || timeline.some((event) => !event.sourceHref.includes(documentId))) throw new Error("SYNTHETIC_TIMELINE_ASSERTION_FAILED");
         reviewResult = { ...reviewResult, timeline: "PASS", timelineEvents: timeline.length, sourceLinks: "verified" };
+        if (process.argv.includes("--ask")) {
+          const reviewedById = new Map((reviewed ?? []).map((record) => [record.id, record]));
+          const categoryMap: Record<string, QAEvidence["category"] | undefined> = { labs: "lab", medications: "medication", diagnoses: "diagnosis", allergies: "allergy", procedures: "procedure", vitals: "vital", documents: "document" };
+          const qaEvidence = timeline.flatMap<QAEvidence>((event) => {
+            const category = categoryMap[event.category]; if (!category) return [];
+            const recordId = event.id.startsWith("record-") ? event.id.slice(7) : null; const source = recordId ? reviewedById.get(recordId) : null;
+            return [{ id: event.id, category, title: event.title, detail: event.description, date: event.date, documentId, documentName: "Synthetic worker fixture", recordId, pageNumber: source?.source_page_number ?? null, sourceText: source?.source_text ?? event.title, sourceHref: event.reviewHref ?? event.sourceHref }];
+          });
+          const qa = new DeterministicQAProvider();
+          const [medicationAnswer, labAnswer, diagnosisAnswer, missingDiagnosis] = await Promise.all([
+            qa.answer("Was I prescribed Metformin?", qaEvidence), qa.answer("Show my Hemoglobin values", qaEvidence),
+            qa.answer("Do my records mention diabetes?", qaEvidence), qa.answer("Do I have kidney disease?", qaEvidence),
+          ]);
+          if (medicationAnswer.noEvidence || labAnswer.noEvidence || diagnosisAnswer.noEvidence || !missingDiagnosis.noEvidence || [...medicationAnswer.evidence, ...labAnswer.evidence, ...diagnosisAnswer.evidence].some((item) => !item.sourceHref.includes(documentId))) throw new Error("SYNTHETIC_ASK_ASSERTION_FAILED");
+          reviewResult = { ...reviewResult, ask: "PASS", questionsVerified: 4, askSourceLinks: "verified", insufficientEvidenceRefusal: "verified" };
+        }
       }
       if (process.argv.includes("--search")) {
         const [documentSearch, textSearch, labSearch, medicationSearch, diagnosisSearch] = await Promise.all([

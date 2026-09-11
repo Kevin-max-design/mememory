@@ -309,3 +309,35 @@ SECURITY: authenticated server data loader, explicit owner filters plus RLS, str
 REMAINING LIMITATIONS: literal substring matching only; no ranking, stemming, typo
 tolerance, date filters, pagination UI, or semantic search. Overall results are capped.
 NEXT PHASE: stop. Do not begin Phase 11 without explicit instruction.
+
+## Phase 11 — Ask MedMemory
+STATUS: PASS
+IMPLEMENTED: authenticated `/ask` experience with question form, evidence-bound answer
+panel, source cards, safe no-evidence response, dashboard shortcut, deterministic QA,
+and optional loopback-only Ollama provider with strict output/evidence-ID validation and
+automatic deterministic fallback.
+ARCHITECTURE: dynamic evidence is built only from approved/corrected timeline facts and
+their immutable source text. Deterministic intent handlers cover medication, lab,
+diagnosis, allergy, procedure, vital, and document questions. No generic medical answer
+path exists. Ollama receives only bounded evidence summaries and cannot cite unknown IDs.
+NO-EVIDENCE: unsupported or unsupported-by-record questions return a fixed refusal.
+Kidney-disease questions require an explicit reviewed diagnosis; related creatinine/urea
+results are described as related labs rather than a diagnosis.
+FILES CHANGED: apps/web/src/app/ask/page.tsx; features/ask/provider.ts, data.ts;
+test/ask.test.ts; dashboard/page.tsx; workers/e2e.ts; docs/checkpoints.md.
+COMMANDS RUN: npm run test:worker:e2e -- --ask; database.py verify; npm test;
+npm run lint; npm run typecheck; npm run build; pytest; Ruff; browser bundle secret
+scan; git diff --check.
+TEST RESULTS: 62 web tests PASS; 15 processor tests PASS; lint, typecheck, production
+build, Ruff, secret scan, and diff check PASS. Live isolated flow verified medication,
+lab, explicit diagnosis, and insufficient-evidence diagnosis questions with correct
+source/provenance links.
+CLEANUP: restored 2 users, 2 storage objects, 2 queued documents, 2 queued jobs, and
+zero page/block/medical/child rows. Existing records were unchanged. No migration needed.
+SECURITY: authenticated server retrieval, owner filters plus RLS, reviewed facts only,
+bounded evidence and question length, no raw record logging, loopback-only optional
+Ollama endpoint, and no configured server secret in browser assets.
+REMAINING LIMITATIONS: deterministic language coverage is intentionally narrow; no
+conversation history, semantic retrieval, streaming, clinical recommendations, or
+remote model provider. Dates rely on the existing timeline normalization.
+NEXT PHASE: stop. Do not begin Phase 12 without explicit instruction.
