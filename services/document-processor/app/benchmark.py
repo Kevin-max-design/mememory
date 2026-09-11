@@ -3,6 +3,7 @@
 import argparse
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 from time import perf_counter
 from uuid import UUID
@@ -10,7 +11,7 @@ from uuid import UUID
 import fitz
 from PIL import Image
 
-from app.clinical import OpenMedClinicalNlpProvider
+from app.clinical import DEFAULT_OPENMED_MODEL, build_openmed_provider, local_model_available
 from app.errors import ProcessorError
 from app.layout import classify_document_regions, reconstruct_rows
 from app.ocr import PaddleOCRProvider, TesseractOCRProvider
@@ -36,7 +37,9 @@ def manual_action() -> None:
     print("MANUAL ACTION REQUIRED — PADDLEOCR LIVE MODEL DOWNLOAD")
     print("Run these commands from the MedMemory repository root:")
     print("cd services/document-processor")
-    print(".venv/bin/python -c 'from paddleocr import PaddleOCR; PaddleOCR(lang=\"en\", use_doc_orientation_classify=True, use_doc_unwarping=False, use_textline_orientation=True)'")
+    print(
+        ".venv/bin/python -c 'from paddleocr import PaddleOCR; PaddleOCR(lang=\"en\", use_doc_orientation_classify=True, use_doc_unwarping=False, use_textline_orientation=True)'"
+    )
     print("cd ../..")
     print("npm run benchmark:ocr -- /absolute/path/to/report.pdf")
 
@@ -54,7 +57,14 @@ def render_pages(path: Path):
 
 def run_benchmark(path: Path, providers=None) -> int:
     providers = providers or [PaddleOCRProvider(), TesseractOCRProvider()]
+    model_available = local_model_available(DEFAULT_OPENMED_MODEL)
     print("OCR benchmark: local-only, no persistence, no document text output", flush=True)
+    print("OPENMED_MODEL_ENABLED=true", flush=True)
+    print(f"OPENMED_MODEL_AVAILABLE={str(model_available).lower()}", flush=True)
+    print(f"OPENMED_MODEL_NAME={DEFAULT_OPENMED_MODEL}", flush=True)
+    print(f"OPENMED_MODEL_LOCAL_FILES={str(model_available).lower()}", flush=True)
+    print("OPENMED_MODEL_RUNTIME=gliner-pytorch-cpu", flush=True)
+    print(f"OPENMED_NER_ACTIVE={str(model_available).lower()}", flush=True)
     page_count = 0
     paddle_pages: list[PageAnalysis] = []
     deterministic_count = 0
@@ -69,13 +79,17 @@ def run_benchmark(path: Path, providers=None) -> int:
                 elapsed = perf_counter() - started
                 metadata = result.provider
                 main_blocks = sum(block.region == "main_content" for block in result.blocks)
-                useful_blocks = sum(bool(MEDICAL_SIGNAL.search(block.text)) for block in result.blocks)
+                useful_blocks = sum(
+                    bool(MEDICAL_SIGNAL.search(block.text)) for block in result.blocks
+                )
                 extraction_blocks = (
                     reconstruct_rows(result.blocks)
                     if metadata.name == "paddleocr"
                     else result.blocks
                 )
-                candidate_count = sum(bool(ROW_SIGNAL.search(block.text)) for block in extraction_blocks)
+                candidate_count = sum(
+                    bool(ROW_SIGNAL.search(block.text)) for block in extraction_blocks
+                )
                 if metadata.name == "paddleocr":
                     deterministic_count += candidate_count
                     paddle_pages.append(
@@ -127,30 +141,65 @@ def run_benchmark(path: Path, providers=None) -> int:
     if paddle_pages:
         classify_document_regions(paddle_pages)
         started = perf_counter()
-        brain = OpenMedClinicalNlpProvider().analyze(
-            UUID("00000000-0000-0000-0000-000000000000"), paddle_pages
-        )
+        clinical = build_openmed_provider(DEFAULT_OPENMED_MODEL)
+        brains = []
+        for page in paddle_pages:
+            page_brain = clinical.analyze(UUID("00000000-0000-0000-0000-000000000000"), [page])
+            brains.append(page_brain)
+            reasons = (
+                ",".join(
+                    f"{name}:{count}"
+                    for name, count in sorted(page_brain.metadata.rejected_reasons.items())
+                )
+                or "none"
+            )
+            print(
+                f"clinical_page={page.page_number} blocks={len(page.blocks)} "
+                f"ner_blocks_evaluated={page_brain.metadata.ner_blocks_evaluated} "
+                f"raw_proposals={page_brain.metadata.candidates_before_validation} "
+                f"accepted={page_brain.metadata.candidates_after_validation} rejected={reasons}",
+                flush=True,
+            )
+        candidates = [candidate for brain in brains for candidate in brain.candidates]
+        raw_categories = Counter()
+        accepted_categories = Counter()
+        rejected_categories = Counter()
+        for brain in brains:
+            raw_categories.update(brain.metadata.raw_proposals_by_category)
+            accepted_categories.update(brain.metadata.accepted_by_category)
+            rejected_categories.update(brain.metadata.rejected_reasons)
+        model_backed = any(brain.metadata.model_backed for brain in brains)
         openmed_keys = {
             (candidate.source_page_number, candidate.source_block_ids[0], candidate.record_type)
-            for candidate in brain.candidates
+            for candidate in candidates
         }
         # OpenMed's conservative lab proposals are a subset of the same source-bound rows
         # counted by the deterministic benchmark. The production worker performs the full
         # semantic merge; its exact behavior is covered by the worker test suite.
-        duplicates_removed = min(len(openmed_keys), deterministic_count)
+        openmed_labs = accepted_categories["lab"]
+        duplicates_removed = min(openmed_labs, deterministic_count)
         composite_count = deterministic_count + len(openmed_keys) - duplicates_removed
-        reasons = ",".join(
-            f"{name}:{count}" for name, count in sorted(brain.metadata.rejected_reasons.items())
-        ) or "none"
+        fallback_additions = max(0, deterministic_count - openmed_labs)
+        unique_contribution = len(openmed_keys) - duplicates_removed
+        category_names = ("diagnosis", "medication", "allergy", "procedure", "finding", "lab")
+        raw = ",".join(f"{name}:{raw_categories[name]}" for name in category_names)
+        accepted = ",".join(f"{name}:{accepted_categories[name]}" for name in category_names)
+        reasons = (
+            ",".join(f"{name}:{count}" for name, count in sorted(rejected_categories.items()))
+            or "none"
+        )
         print(
             "clinical_benchmark "
-            f"openmed_invoked={str(brain.metadata.invoked).lower()} "
-            f"openmed_apis_used={','.join(brain.metadata.apis_used)} "
-            f"openmed_model_backed={str(brain.metadata.model_backed).lower()} "
-            f"openmed_candidates_before_validation={brain.metadata.candidates_before_validation} "
-            f"openmed_candidates_after_validation={brain.metadata.candidates_after_validation} "
+            f"openmed_invoked={str(bool(brains)).lower()} "
+            f"openmed_apis_used={','.join(brains[0].metadata.apis_used)} "
+            f"openmed_model_backed={str(model_backed).lower()} "
+            f"openmed_candidates_before_validation={sum(b.metadata.candidates_before_validation for b in brains)} "
+            f"openmed_candidates_after_validation={len(candidates)} "
+            f"openmed_raw_by_category={raw} openmed_accepted_by_category={accepted} "
             f"deterministic_candidates={deterministic_count} "
+            f"deterministic_fallback_additions={fallback_additions} "
             f"composite_final_candidates={composite_count} "
+            f"openmed_unique_contribution={unique_contribution} "
             f"duplicates_removed={duplicates_removed} rejected_openmed={reasons} "
             f"runtime_seconds={perf_counter() - started:.3f}",
             flush=True,

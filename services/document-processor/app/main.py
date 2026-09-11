@@ -11,9 +11,9 @@ from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.clinical import (
-    CompositeClinicalNlpProvider,
+    DEFAULT_OPENMED_MODEL,
     NoopClinicalNlpProvider,
-    OpenMedClinicalNlpProvider,
+    build_openmed_provider,
 )
 from app.errors import ProcessorError
 from app.ocr import CompositeOCRProvider, PaddleOCRProvider, TesseractOCRProvider
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     enable_openmed: bool = False
     openmed_local_only: bool = True
     openmed_model_dir: str = ""
-    openmed_disease_model: str = "urchade/gliner_large_bio-v0.1"
+    openmed_disease_model: str = DEFAULT_OPENMED_MODEL
     openmed_drug_model: str = ""
     openmed_pii_model: str = ""
     enable_ocr_debug: bool = False
@@ -50,10 +50,7 @@ async def lifespan(app: FastAPI):
         else fallback
     )
     clinical = (
-        CompositeClinicalNlpProvider(
-            OpenMedClinicalNlpProvider(app.state.settings.openmed_disease_model),
-            NoopClinicalNlpProvider(),
-        )
+        build_openmed_provider(app.state.settings.openmed_disease_model)
         if app.state.settings.enable_openmed and app.state.settings.openmed_local_only
         else NoopClinicalNlpProvider()
     )

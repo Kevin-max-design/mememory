@@ -74,6 +74,9 @@ export const processorResponseSchema = z
         candidates_before_validation: z.number().int().nonnegative(),
         candidates_after_validation: z.number().int().nonnegative(),
         rejected_reasons: z.record(z.string(), z.number().int().nonnegative()),
+        raw_proposals_by_category: z.record(z.string(), z.number().int().nonnegative()).optional(),
+        accepted_by_category: z.record(z.string(), z.number().int().nonnegative()).optional(),
+        ner_blocks_evaluated: z.number().int().nonnegative().optional(),
       }).optional(),
       clinical_candidates: z.array(z.object({
         record_type: z.enum(["lab", "medication", "diagnosis", "allergy", "vital", "procedure", "doctor_note"]),

@@ -153,3 +153,14 @@ def test_medication_allergy_procedure_and_finding_are_context_gated():
     assert len(by_type["allergy"]) == 1
     assert result.metadata.rejected_reasons["no_context"] >= 1
     assert result.metadata.rejected_reasons["negated"] >= 2
+
+
+def test_model_medication_label_on_lab_row_is_rejected_without_sig_context():
+    text = "Creatinine 1.1 mg/dl"
+    predict = entity_predictor({"Creatinine": "medication"})
+    result = OpenMedClinicalNlpProvider(model_id="synthetic", predict=predict).analyze(
+        uuid4(), [page_with(("lab", text))]
+    )
+    medications = [item for item in result.candidates if item.record_type == "medication"]
+    assert medications == []
+    assert result.metadata.rejected_reasons["no_context"] == 1

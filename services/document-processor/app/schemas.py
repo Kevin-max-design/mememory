@@ -92,6 +92,9 @@ class ClinicalBrainMetadata(BaseModel):
     candidates_before_validation: int = 0
     candidates_after_validation: int = 0
     rejected_reasons: dict[str, int] = Field(default_factory=dict)
+    raw_proposals_by_category: dict[str, int] = Field(default_factory=dict)
+    accepted_by_category: dict[str, int] = Field(default_factory=dict)
+    ner_blocks_evaluated: int = 0
 
 
 class DocumentAnalysis(BaseModel):

@@ -39,6 +39,27 @@ FALSE_POSITIVE = re.compile(
     re.IGNORECASE,
 )
 LABELS = ["diagnosis", "medication", "allergy", "procedure", "clinical finding"]
+DEFAULT_OPENMED_MODEL = "urchade/gliner_large_bio-v0.1"
+DEFAULT_OPENMED_TOKENIZER = "microsoft/deberta-v3-large"
+
+
+def local_model_available(model_id: str = DEFAULT_OPENMED_MODEL) -> bool:
+    """Check the Hugging Face cache without network access or model initialization."""
+    try:
+        from huggingface_hub import snapshot_download
+
+        snapshot_download(model_id, local_files_only=True)
+        snapshot_download(DEFAULT_OPENMED_TOKENIZER, local_files_only=True)
+        return True
+    except (ImportError, OSError, RuntimeError, ValueError):
+        return False
+
+
+def build_openmed_provider(model_id: str = DEFAULT_OPENMED_MODEL) -> "CompositeClinicalNlpProvider":
+    """Build the production OpenMed-first provider with a safe no-op fallback."""
+    return CompositeClinicalNlpProvider(
+        OpenMedClinicalNlpProvider(model_id), NoopClinicalNlpProvider()
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -216,11 +237,22 @@ class OpenMedClinicalNlpProvider:
         match = MEDICATION.match(text)
         if label in {"medication", "drug", "treatment"}:
             body = match[1] if match else text
-            if not match and not re.search(
-                r"\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|units?|iu)\b", text, re.IGNORECASE
-            ):
-                self._reject(rejected, "no_context")
-                return None
+            if not match:
+                explicit_dose = re.search(
+                    r"\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|units?|iu)\b",
+                    text,
+                    re.IGNORECASE,
+                )
+                explicit_frequency = re.search(
+                    r"\b(?:once|twice|thrice|daily|weekly|before meals|after meals|"
+                    r"at bedtime|prn|bid|tid|qid|every \d+ hours?)\b",
+                    text,
+                    re.IGNORECASE,
+                )
+                entity_starts_line = start == 0
+                if not (explicit_dose and explicit_frequency and entity_starts_line):
+                    self._reject(rejected, "no_context")
+                    return None
             name = re.match(r"([A-Za-z][A-Za-z .'-]*?)(?=\s+\d|$)", body)
             if not name:
                 self._reject(rejected, "no_context")
@@ -305,11 +337,15 @@ class OpenMedClinicalNlpProvider:
         del document_id
         normalize, parse_number, parse_sig, context, split = self._imports()
         accepted, rejected, before, model_invoked = [], {}, 0, False
+        raw_categories: dict[str, int] = {}
+        ner_blocks_evaluated = 0
         for page in pages:
             for block in page.blocks:
                 if block.region != "main_content":
                     self._reject(rejected, "likely_header_footer")
                     continue
+                if block.text.strip():
+                    ner_blocks_evaluated += 1
                 for raw in block.text.splitlines():
                     line = raw.strip()
                     if not line:
@@ -317,6 +353,23 @@ class OpenMedClinicalNlpProvider:
                     entities = self._predict(line)
                     model_invoked |= bool(self.model_id or self.predict_override)
                     before += len(entities)
+                    for entity in entities:
+                        label = str(self._get(entity, "label", "")).lower()
+                        category = {
+                            "disease": "diagnosis",
+                            "condition": "diagnosis",
+                            "problem": "diagnosis",
+                            "drug": "medication",
+                            "treatment": "medication",
+                            "test": "procedure",
+                            "clinical finding": "finding",
+                        }.get(
+                            label,
+                            label
+                            if label in {"diagnosis", "medication", "allergy", "procedure"}
+                            else "unsupported",
+                        )
+                        raw_categories[category] = raw_categories.get(category, 0) + 1
                     accepted.extend(
                         c
                         for entity in entities
@@ -366,6 +419,13 @@ class OpenMedClinicalNlpProvider:
                         )
                     )
                     before += 1
+                    raw_categories["lab"] = raw_categories.get("lab", 0) + 1
+        accepted_categories: dict[str, int] = {}
+        for candidate in accepted:
+            category = (
+                "finding" if candidate.record_type == "doctor_note" else candidate.record_type
+            )
+            accepted_categories[category] = accepted_categories.get(category, 0) + 1
         metadata = ClinicalBrainMetadata(
             name="openmed",
             version=version("openmed"),
@@ -377,6 +437,9 @@ class OpenMedClinicalNlpProvider:
             candidates_before_validation=before,
             candidates_after_validation=len(accepted),
             rejected_reasons=rejected,
+            raw_proposals_by_category=raw_categories,
+            accepted_by_category=accepted_categories,
+            ner_blocks_evaluated=ner_blocks_evaluated,
         )
         return ClinicalBrainResult(tuple(accepted), metadata)
 
