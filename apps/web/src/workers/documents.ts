@@ -22,6 +22,49 @@ export const workerEnvironmentSchema = z.object({
   DOCUMENT_PROCESSOR_SECRET: z.string().min(32),
 });
 
+export const MAX_PROCESSOR_RESPONSE_BYTES = 64 * 1024 * 1024;
+
+export async function readBoundedJsonResponse(
+  response: Response,
+  maximumBytes = MAX_PROCESSOR_RESPONSE_BYTES,
+): Promise<unknown> {
+  const declared = response.headers.get("content-length");
+  if (declared && (!/^\d+$/.test(declared) || Number(declared) > maximumBytes)) {
+    throw new WorkerFailure("PROCESSOR_RESPONSE_TOO_LARGE", false, "The document processor returned too much data.");
+  }
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new WorkerFailure("PROCESSOR_INVALID_RESPONSE", false, "The document processor returned an invalid response.");
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maximumBytes) {
+        await reader.cancel();
+        throw new WorkerFailure("PROCESSOR_RESPONSE_TOO_LARGE", false, "The document processor returned too much data.");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+  } catch {
+    throw new WorkerFailure("PROCESSOR_INVALID_RESPONSE", false, "The document processor returned an invalid response.");
+  }
+}
+
 const claimSchema = z.object({
   job_id: z.uuid(),
   document_id: z.uuid(),
@@ -141,7 +184,7 @@ export class SupabaseWorkerDependencies implements WorkerDependencies {
       const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
       let providerCode = "PROCESSOR_REQUEST_FAILED";
       try {
-        const body = (await response.json()) as { error?: { code?: unknown } };
+        const body = (await readBoundedJsonResponse(response, 64 * 1024)) as { error?: { code?: unknown } };
         if (
           typeof body.error?.code === "string" &&
           /^[A-Z0-9_]{3,100}$/.test(body.error.code)
@@ -161,8 +204,9 @@ export class SupabaseWorkerDependencies implements WorkerDependencies {
     }
 
     try {
-      return await response.json();
-    } catch {
+      return await readBoundedJsonResponse(response);
+    } catch (error) {
+      if (error instanceof WorkerFailure) throw error;
       throw new WorkerFailure(
         "PROCESSOR_INVALID_RESPONSE",
         false,

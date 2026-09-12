@@ -3,10 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import {
   CompletionUncertainError,
   DocumentWorker,
+  MAX_BLOCKS_PER_PAGE,
+  processorResponseSchema,
   WorkerFailure,
   type ClaimedDocumentJob,
   type WorkerDependencies,
 } from "@/workers/document-worker";
+import { readBoundedJsonResponse } from "@/workers/documents";
 
 const content = new TextEncoder().encode("synthetic document bytes");
 const job: ClaimedDocumentJob = {
@@ -67,6 +70,27 @@ function dependencies(
 }
 
 describe("document worker orchestration", () => {
+  it("rejects processor responses that exceed the byte budget", async () => {
+    const response = new Response(JSON.stringify({ value: "oversized" }));
+    await expect(readBoundedJsonResponse(response, 4)).rejects.toMatchObject({
+      code: "PROCESSOR_RESPONSE_TOO_LARGE",
+    });
+  });
+
+  it("rejects excessive OCR blocks before persistence", () => {
+    const blocks = Array.from({ length: MAX_BLOCKS_PER_PAGE + 1 }, (_, index) => ({
+      ...processorResponse.data.pages[0].blocks[0],
+      id: `block-${index}`,
+    }));
+    const response = {
+      ...processorResponse,
+      data: {
+        ...processorResponse.data,
+        pages: [{ ...processorResponse.data.pages[0], blocks }],
+      },
+    };
+    expect(processorResponseSchema.safeParse(response).success).toBe(false);
+  });
   it("returns idle when no job is available", async () => {
     const worker = new DocumentWorker(
       dependencies({ claim: vi.fn().mockResolvedValue(null) }),

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { persistValidatedUpload } from "@/features/documents/persistence";
 import {
-  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_REQUEST_BYTES,
+  readBoundedRequestBody,
   validateUpload,
 } from "@/features/documents/validation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   const contentLength = Number(request.headers.get("content-length"));
   if (
     Number.isFinite(contentLength) &&
-    contentLength > MAX_UPLOAD_BYTES + 1024 * 1024
+    contentLength > MAX_UPLOAD_REQUEST_BYTES
   ) {
     return jsonError("file_too_large", 413);
   }
@@ -26,9 +27,16 @@ export async function POST(request: Request) {
   const { data: auth, error: authError } = await sessionClient.auth.getUser();
   if (authError || !auth.user) return jsonError("unauthenticated", 401);
 
+  const requestBody = await readBoundedRequestBody(request);
+  if (!requestBody) return jsonError("file_too_large", 413);
+
   let formData: FormData;
   try {
-    formData = await request.formData();
+    formData = await new Request(request.url, {
+      method: "POST",
+      headers: request.headers,
+      body: requestBody,
+    }).formData();
   } catch {
     return jsonError("invalid_request", 400);
   }

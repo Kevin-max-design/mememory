@@ -7,6 +7,10 @@ import {
   type ExtractionProvider,
 } from "../features/extraction";
 
+export const MAX_BLOCKS_PER_PAGE = 2_000;
+export const MAX_TOTAL_BLOCKS = 20_000;
+export const MAX_TOTAL_TEXT_BYTES = 20_000_000;
+
 const boundingBoxSchema = z
   .object({
     x0: z.number().finite().nonnegative(),
@@ -45,7 +49,7 @@ export const processorResponseSchema = z
               bbox: boundingBoxSchema,
               region: z.enum(["main_content", "likely_header", "likely_footer", "disclaimer"]).optional(),
             }),
-          ),
+          ).max(MAX_BLOCKS_PER_PAGE),
           provider: z.object({
             name: z.string().min(1).max(100),
             version: z.string().min(1).max(100),
@@ -57,7 +61,7 @@ export const processorResponseSchema = z
             fallback_reason: z.string().max(100).nullable().optional(),
           }),
         }),
-      ),
+      ).max(250),
       clinical_provider: z.object({
         name: z.string().max(100),
         version: z.string().max(100),
@@ -107,7 +111,20 @@ export const processorResponseSchema = z
       new Set(response.data.pages.map((page) => page.page_number)).size ===
       response.data.pages.length,
     { message: "Page numbers must be unique" },
-  );
+  )
+  .superRefine((response, context) => {
+    const blocks = response.data.pages.flatMap((page) => page.blocks);
+    if (blocks.length > MAX_TOTAL_BLOCKS) {
+      context.addIssue({ code: "custom", message: "Total block count exceeds the safe limit" });
+    }
+    const textBytes = blocks.reduce(
+      (total, block) => total + Buffer.byteLength(block.text, "utf8"),
+      0,
+    );
+    if (textBytes > MAX_TOTAL_TEXT_BYTES) {
+      context.addIssue({ code: "custom", message: "Total text size exceeds the safe limit" });
+    }
+  });
 
 export type ProcessorResponse = z.infer<typeof processorResponseSchema>;
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_UPLOAD_BYTES,
   documentStateTransitions,
+  readBoundedRequestBody,
   validateUpload,
 } from "@/features/documents/validation";
 
@@ -16,6 +17,35 @@ const webp = new Uint8Array([
 ]);
 
 describe("secure upload validation", () => {
+  it("stops reading a chunked request at the envelope limit", async () => {
+    const request = new Request("http://localhost/upload", {
+      method: "POST",
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(6));
+          controller.enqueue(new Uint8Array(6));
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+    await expect(readBoundedRequestBody(request, 10)).resolves.toBeNull();
+  });
+
+  it("preserves a request body within the envelope limit", async () => {
+    const request = new Request("http://localhost/upload", {
+      method: "POST",
+      body: new Uint8Array([1, 2, 3]),
+    });
+    await expect(readBoundedRequestBody(request, 3)).resolves.toEqual(
+      new Uint8Array([1, 2, 3]),
+    );
+  });
+
+  it("passes an empty request through to normal multipart validation", async () => {
+    const request = new Request("http://localhost/upload", { method: "POST" });
+    await expect(readBoundedRequestBody(request, 3)).resolves.toEqual(new Uint8Array());
+  });
   it.each([
     ["record.pdf", "application/pdf", pdf, "pdf"],
     ["scan.jpeg", "image/jpeg", jpeg, "jpg"],
