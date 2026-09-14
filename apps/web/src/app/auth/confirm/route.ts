@@ -1,5 +1,7 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+import { requestCorrelationId } from "@/features/audit/model";
+import { recordAuditEvent } from "@/features/audit/server";
 import { createClient } from "@/lib/supabase/server";
 
 const allowedTypes = new Set<EmailOtpType>([
@@ -10,6 +12,7 @@ const allowedTypes = new Set<EmailOtpType>([
 ]);
 
 export async function GET(request: NextRequest) {
+  const requestId = requestCorrelationId(request);
   const tokenHash = request.nextUrl.searchParams.get("token_hash");
   const type = request.nextUrl.searchParams.get("type") as EmailOtpType | null;
   const destination = request.nextUrl.clone();
@@ -17,15 +20,17 @@ export async function GET(request: NextRequest) {
 
   if (tokenHash && type && allowedTypes.has(type)) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.verifyOtp({
+    const { data, error } = await supabase.auth.verifyOtp({
       type,
       token_hash: tokenHash,
     });
     if (!error) {
+      await recordAuditEvent({ actorUserId: data.user?.id ?? null, action: "auth.email_verified", resourceType: "user", resourceId: data.user?.id, status: "succeeded", metadata: { source_route: "/auth/confirm" }, requestId });
       destination.pathname = "/dashboard";
       return NextResponse.redirect(destination);
     }
   }
+  await recordAuditEvent({ actorUserId: null, action: "auth.email_verification_failed", resourceType: "user", status: "failed", metadata: { error_code: "CONFIRMATION_FAILED", source_route: "/auth/confirm" }, requestId });
   destination.pathname = "/login";
   destination.searchParams.set("error", "confirmation_failed");
   return NextResponse.redirect(destination);

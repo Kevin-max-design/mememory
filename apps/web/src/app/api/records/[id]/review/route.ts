@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import { requestCorrelationId } from "@/features/audit/model";
+import { recordAuditEvent } from "@/features/audit/server";
 import { reviewUpdateSchema } from "@/features/medical-records/review-schema";
 import { createClient } from "@/lib/supabase/server";
 import type { Json } from "@/types/database.types";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const requestId = requestCorrelationId(request);
   const supabase = await createClient();
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user) return NextResponse.json({ error: "Authentication is required." }, { status: 401 });
@@ -19,8 +22,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     p_correction: parsed.data.action === "correct" ? parsed.data.correction as unknown as Json : null,
   });
   if (error) {
+    await recordAuditEvent({ actorUserId: auth.user.id, action: "review.failed", resourceType: "medical_record", resourceId: parsed.data.recordId, status: "failed", metadata: { error_code: "REVIEW_UPDATE_FAILED", review_action: parsed.data.action, source_route: "/api/records/review" }, requestId });
     const notFound = error.message.includes("RECORD_NOT_FOUND");
     return NextResponse.json({ error: notFound ? "Record not found." : "The review change could not be saved." }, { status: notFound ? 404 : 400 });
   }
+  const action = parsed.data.action === "approve" ? "review.approved" : parsed.data.action === "correct" ? "review.corrected" : "review.rejected";
+  await recordAuditEvent({ actorUserId: auth.user.id, action, resourceType: "medical_record", resourceId: parsed.data.recordId, status: "succeeded", metadata: { review_action: parsed.data.action, source_route: "/api/records/review" }, requestId });
   return NextResponse.json({ ok: true, documentStatus: data });
 }

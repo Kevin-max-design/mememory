@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
+import type { AuditAction, AuditStatus, SafeAuditValue } from "../features/audit/model";
 import {
   DeterministicExtractionProvider,
   ExtractionError,
@@ -188,6 +189,7 @@ export type WorkerDependencies = {
     job: ClaimedDocumentJob,
     failure: WorkerFailure,
   ): Promise<"queued" | "failed">;
+  audit?(event: { actorUserId: string; action: AuditAction; resourceId: string; status: AuditStatus; metadata?: Record<string, SafeAuditValue> }): Promise<void>;
 };
 
 export type WorkerResult =
@@ -330,9 +332,16 @@ export class DocumentWorker {
       new DeterministicExtractionProvider(),
   ) {}
 
+  private async audit(job: ClaimedDocumentJob, action: AuditAction, status: AuditStatus, metadata?: Record<string, SafeAuditValue>) {
+    try { await this.dependencies.audit?.({ actorUserId: job.userId, action, resourceId: job.jobId, status, metadata }); }
+    catch { /* Audit is non-blocking for processing. */ }
+  }
+
   async runOnce(): Promise<WorkerResult> {
     const job = await this.dependencies.claim();
     if (!job) return { outcome: "idle" };
+    await this.audit(job, "processing.claimed", "succeeded", { source_route: "document_worker" });
+    await this.audit(job, "processing.started", "succeeded", { source_route: "document_worker" });
 
     let claimLost = false;
     const heartbeat = setInterval(() => {
@@ -405,6 +414,7 @@ export class DocumentWorker {
         );
       }
       await this.dependencies.complete(job, payload);
+      await this.audit(job, "processing.completed", "succeeded", { page_count: payload.pages.length, processing_provider: payload.ocrProvider, fallback_used: payload.pages.some((page) => !page.native_text_used) });
       return { outcome: "completed", jobId: job.jobId, documentId: job.documentId };
     } catch (error) {
       if (error instanceof CompletionUncertainError) {
@@ -417,6 +427,7 @@ export class DocumentWorker {
       const failure = normalizeFailure(error);
       try {
         const nextStatus = await this.dependencies.fail(job, failure);
+        await this.audit(job, "processing.failed", "failed", { error_code: failure.code, retryable: failure.retryable, next_status: nextStatus });
         return {
           outcome: nextStatus === "queued" ? "requeued" : "failed",
           jobId: job.jobId,

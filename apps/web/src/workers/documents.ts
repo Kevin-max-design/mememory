@@ -3,6 +3,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { config } from "dotenv";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { safeAuditMetadata } from "@/features/audit/model";
 import type { Database, Json } from "@/types/database.types";
 import {
   CompletionUncertainError,
@@ -274,6 +275,11 @@ export class SupabaseWorkerDependencies implements WorkerDependencies {
       throw new Error("JOB_FAILURE_UPDATE_FAILED");
     }
     return data;
+  }
+
+  async audit(event: Parameters<NonNullable<WorkerDependencies["audit"]>>[0]) {
+    const { error } = await this.supabase.from("audit_logs").insert({ user_id: event.actorUserId, action: event.action, resource_type: "processing_job", resource_id: event.resourceId, metadata: safeAuditMetadata(event.status, event.metadata) });
+    if (error) console.warn("audit_write_failed", { action: event.action });
   }
 }
 

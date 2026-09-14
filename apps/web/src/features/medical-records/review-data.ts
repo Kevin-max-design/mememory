@@ -1,5 +1,6 @@
 import "server-only";
 import { notFound } from "next/navigation";
+import { recordAuditEvent } from "@/features/audit/server";
 import { requireUser } from "@/server/auth/require-user";
 
 export type ReviewRecord = {
@@ -28,6 +29,8 @@ export async function getReviewData(documentId: string) {
   const { data: signedPreview } = await supabase.storage
     .from("medical-records")
     .createSignedUrl(document.storage_path, 300);
+  await recordAuditEvent({ actorUserId: user.id, action: "document.viewed", resourceType: "document", resourceId: document.id, status: "succeeded", metadata: { source_route: "/records/detail" } });
+  if (signedPreview?.signedUrl) await recordAuditEvent({ actorUserId: user.id, action: "document.preview_requested", resourceType: "document", resourceId: document.id, status: "succeeded", metadata: { mime_type: document.mime_type, source_route: "/records/review" } });
   const ids = records?.map((record) => record.id) ?? [];
   const empty = { data: [] as Record<string, unknown>[] };
   const childResults = ids.length ? await Promise.all([

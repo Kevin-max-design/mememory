@@ -65,6 +65,7 @@ function dependencies(
     analyze: vi.fn().mockResolvedValue(processorResponse),
     complete: vi.fn().mockResolvedValue(undefined),
     fail: vi.fn().mockResolvedValue("failed"),
+    audit: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -127,6 +128,7 @@ describe("document worker orchestration", () => {
       }),
     );
     expect(deps.fail).not.toHaveBeenCalled();
+    expect(deps.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "processing.completed", status: "succeeded" }));
   });
 
   it("prefers a validated source-bound OpenMed candidate over a deterministic duplicate", async () => {
@@ -186,6 +188,7 @@ describe("document worker orchestration", () => {
       code: "PROCESSOR_UNAVAILABLE",
     });
     expect(deps.fail).toHaveBeenCalledWith(job, failure);
+    expect(deps.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "processing.failed", status: "failed", metadata: expect.objectContaining({ error_code: "PROCESSOR_UNAVAILABLE" }) }));
   });
 
   it("fails non-retryable integrity mismatches before processing", async () => {
@@ -245,5 +248,10 @@ describe("document worker orchestration", () => {
       outcome: "failure_report_failed",
       jobId: job.jobId,
     });
+  });
+
+  it("does not change processing success when audit recording fails", async () => {
+    const deps = dependencies({ audit: vi.fn().mockRejectedValue(new Error("audit unavailable")) });
+    await expect(new DocumentWorker(deps).runOnce()).resolves.toMatchObject({ outcome: "completed" });
   });
 });
