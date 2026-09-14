@@ -1,7 +1,7 @@
+import { parseProductionEnvironment } from "@/schemas/environment";
+
 export async function register() {
-  if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { getSupabasePublicEnvironment } =
-      await import("./lib/supabase/public-environment");
-    getSupabasePublicEnvironment();
+  if (process.env.NODE_ENV === "production" && process.env.NEXT_RUNTIME === "nodejs") {
+    parseProductionEnvironment(process.env);
   }
 }

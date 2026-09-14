@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseEnvironment } from "../schemas/environment";
+import { parseEnvironment, parseProductionEnvironment } from "../schemas/environment";
 
 const configuration = {
   NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
@@ -23,5 +23,10 @@ describe("server configuration", () => {
   });
   it("rejects missing mandatory configuration", () => {
     expect(() => parseEnvironment({})).toThrow("Invalid server configuration");
+  });
+  it("validates all production-only secrets without exposing their values", () => {
+    const production = { ...configuration, SUPABASE_SERVICE_ROLE_KEY: "x".repeat(32), RATE_LIMIT_HASH_SECRET: "r".repeat(32) };
+    expect(parseProductionEnvironment(production).RATE_LIMIT_HASH_SECRET).toHaveLength(32);
+    expect(() => parseProductionEnvironment({ ...production, RATE_LIMIT_HASH_SECRET: "private-short" })).toThrow("PRODUCTION_CONFIGURATION_INVALID");
   });
 });

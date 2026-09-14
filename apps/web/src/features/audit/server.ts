@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/types/database.types";
+import { logServerEvent } from "@/features/observability/logger";
 import {
   safeAuditMetadata,
   type AuditAction,
@@ -40,7 +41,7 @@ export async function recordAuditEvent(
     if (error) throw new Error("AUDIT_WRITE_FAILED");
     return true;
   } catch {
-    console.warn("audit_write_failed", { action: event.action });
+    logServerEvent({ event: "audit.write_failed", errorCode: "AUDIT_WRITE_FAILED", environment: process.env.NODE_ENV }, console.warn);
     return false;
   }
 }

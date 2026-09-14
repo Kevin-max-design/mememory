@@ -13,6 +13,13 @@ export const environmentSchema = publicEnvironmentSchema.extend({
   OLLAMA_MODEL: z.string().min(1).optional(),
 });
 
+export const productionEnvironmentSchema = publicEnvironmentSchema.extend({
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20),
+  DOCUMENT_PROCESSOR_URL: z.url(),
+  DOCUMENT_PROCESSOR_SECRET: z.string().min(32),
+  RATE_LIMIT_HASH_SECRET: z.string().min(32),
+});
+
 export function parseEnvironment(input: Record<string, string | undefined>) {
   const parsed = environmentSchema.safeParse(input);
   if (!parsed.success) {
@@ -33,5 +40,11 @@ export function parsePublicEnvironment(
   if (!parsed.success) {
     throw new Error("Supabase public configuration is missing.");
   }
+  return parsed.data;
+}
+
+export function parseProductionEnvironment(input: Record<string, string | undefined>) {
+  const parsed = productionEnvironmentSchema.safeParse(input);
+  if (!parsed.success) throw new Error("PRODUCTION_CONFIGURATION_INVALID");
   return parsed.data;
 }

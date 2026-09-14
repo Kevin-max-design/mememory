@@ -6,6 +6,7 @@ const recordAuditEvent = vi.fn().mockResolvedValue(true);
 const redirect = vi.fn((path: string) => {
   throw new Error(`REDIRECT:${path}`);
 });
+vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => ({ auth: { signOut, getUser } })),
 }));

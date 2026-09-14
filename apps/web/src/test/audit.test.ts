@@ -70,9 +70,8 @@ describe("audit event recording", () => {
         client as never,
       ),
     ).resolves.toBe(false);
-    expect(warn).toHaveBeenCalledWith("audit_write_failed", {
-      action: "auth.login_failed",
-    });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('"errorCode":"AUDIT_WRITE_FAILED"'));
+    expect(warn.mock.calls[0][0]).not.toContain("database detail");
     warn.mockRestore();
   });
 

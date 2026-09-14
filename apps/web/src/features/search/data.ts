@@ -1,11 +1,13 @@
 import "server-only";
 import { requireUser } from "@/server/auth/require-user";
+import { logServerEvent } from "@/features/observability/logger";
 import { filterSearchResults, safeSnippet, type SearchCategory, type SearchResult } from "./model";
 
 type ChildHit = { medical_record_id: string; category: SearchResult["category"]; title: string; snippet: string; date: string | null };
 
 export async function searchMedicalRecords(query: string, category: SearchCategory) {
   if (!query) return [];
+  const startedAt = performance.now();
   const { supabase, user } = await requireUser();
   const pattern = `%${query}%`;
   const [byName, byOriginal, byType, textBlocks, labsByName, labsByValue, meds, diagnoses, allergies, vitals, procedures, notes] = await Promise.all([
@@ -23,7 +25,10 @@ export async function searchMedicalRecords(query: string, category: SearchCatego
     supabase.from("doctor_notes").select("medical_record_id,text").eq("user_id", user.id).ilike("text", pattern).limit(20),
   ]);
   const responses = [byName, byOriginal, byType, textBlocks, labsByName, labsByValue, meds, diagnoses, allergies, vitals, procedures, notes];
-  if (responses.some((response) => response.error)) throw new Error("SEARCH_QUERY_FAILED");
+  if (responses.some((response) => response.error)) {
+    logServerEvent({ event: "search.failed", route: "/search", errorCode: "SEARCH_QUERY_FAILED", environment: process.env.NODE_ENV });
+    throw new Error("SEARCH_QUERY_FAILED");
+  }
   const blockRows = textBlocks.data ?? [];
   const documents = new Map([...(byName.data ?? []), ...(byOriginal.data ?? []), ...(byType.data ?? [])].map((document) => [document.id, document]));
   const childHits: ChildHit[] = [];
@@ -41,12 +46,17 @@ export async function searchMedicalRecords(query: string, category: SearchCatego
   const sourceDocuments = documentIds.length ? await supabase.from("documents").select("id,display_name,event_date,created_at,processing_status").eq("user_id", user.id).in("id", documentIds) : { data: [], error: null };
   const pageIds = [...new Set(blockRows.map((block) => block.page_id))];
   const pages = pageIds.length ? await supabase.from("document_pages").select("id,page_number").eq("user_id", user.id).in("id", pageIds) : { data: [], error: null };
-  if (recordResponse.error || sourceDocuments.error || pages.error) throw new Error("SEARCH_CONTEXT_FAILED");
+  if (recordResponse.error || sourceDocuments.error || pages.error) {
+    logServerEvent({ event: "search.failed", route: "/search", errorCode: "SEARCH_CONTEXT_FAILED", environment: process.env.NODE_ENV });
+    throw new Error("SEARCH_CONTEXT_FAILED");
+  }
   for (const document of sourceDocuments.data ?? []) documents.set(document.id, document);
   const records = new Map((recordResponse.data ?? []).map((record) => [record.id, record]));
   const results: SearchResult[] = [...documents.values()].map((document) => ({ id: `document-${document.id}`, category: "documents", title: document.display_name, snippet: `Document · ${document.processing_status.replace("_", " ")}`, date: document.event_date ?? document.created_at, documentName: document.display_name, pageNumber: null, reviewStatus: document.processing_status, confidence: null, href: `/records/${document.id}`, sourceHref: null }));
   for (const block of blockRows) { const document = documents.get(block.document_id); if (!document) continue; const page = pages.data?.find((item) => item.id === block.page_id); results.push({ id: `text-${block.id}`, category: "text", title: `Text on page ${page?.page_number ?? "?"}`, snippet: safeSnippet(block.text, query), date: document.event_date ?? document.created_at, documentName: document.display_name, pageNumber: page?.page_number ?? null, reviewStatus: "source text", confidence: null, href: `/records/${block.document_id}`, sourceHref: `/records/${block.document_id}/review` }); }
   for (const hit of childHits) { const record = records.get(hit.medical_record_id); if (!record) continue; const document = documents.get(record.document_id); if (!document) continue; results.push({ id: `record-${record.id}`, category: hit.category, title: hit.title, snippet: hit.snippet, date: hit.date ?? record.event_date ?? document.event_date ?? document.created_at, documentName: document.display_name, pageNumber: record.source_page_number, reviewStatus: record.review_status, confidence: record.confidence, href: `/records/${record.document_id}`, sourceHref: `/records/${record.document_id}/review#record-${record.id}` }); }
   const unique = [...new Map(results.map((result) => [result.id, result])).values()].slice(0, 60);
-  return filterSearchResults(unique, category);
+  const filtered = filterSearchResults(unique, category);
+  logServerEvent({ event: "search.completed", route: "/search", durationMs: Math.round(performance.now() - startedAt), environment: process.env.NODE_ENV });
+  return filtered;
 }

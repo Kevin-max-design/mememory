@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordAuditEvent } from "@/features/audit/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logServerEvent } from "@/features/observability/logger";
 import type { Database } from "@/types/database.types";
 import { privacySafeIdentityHash, type RateLimitRule } from "./model";
 
@@ -34,6 +35,7 @@ export async function checkRateLimit(input: { rule: RateLimitRule; identityKind:
     if (!row.allowed && row.first_denial) await recordAuditEvent({ actorUserId: input.actorUserId ?? null, action: "rate_limit.denied", resourceType: "request", status: "failed", metadata: { error_code: "RATE_LIMIT_EXCEEDED", category: input.rule.scope }, requestId: keyHash.slice(0, 32) }, admin);
     return { allowed: row.allowed, retryAfter: row.retry_after_seconds, remaining: row.remaining, degraded: false };
   } catch {
+    logServerEvent({ event: "rate_limit.degraded", errorCode: "RATE_LIMIT_STORE_FAILED", environment: process.env.NODE_ENV }, console.warn);
     return localLimit(keyHash, input.rule);
   }
 }

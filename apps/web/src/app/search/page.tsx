@@ -4,6 +4,8 @@ import { searchMedicalRecords } from "@/features/search/data";
 import { searchCategories, searchRequestSchema } from "@/features/search/model";
 import { requireUser } from "@/server/auth/require-user";
 
+export const dynamic = "force-dynamic";
+
 const categoryLabels: Record<string, string> = { all: "All", documents: "Documents", text: "Text blocks", labs: "Labs", medications: "Medications", diagnoses: "Diagnoses", allergies: "Allergies", vitals: "Vitals", procedures: "Procedures", notes: "Doctor notes" };
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; category?: string }> }) {

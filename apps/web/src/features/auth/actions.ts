@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { recordAuditEvent } from "@/features/audit/server";
+import { logServerEvent } from "@/features/observability/logger";
 import { createClient } from "@/lib/supabase/server";
 import { credentialsSchema, signupSchema } from "./schemas";
 
@@ -12,6 +13,7 @@ export async function login(formData: FormData) {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) {
+    logServerEvent({ event: "auth.login_failed", route: "/login", errorCode: "INVALID_CREDENTIALS", environment: process.env.NODE_ENV });
     await recordAuditEvent({ actorUserId: null, action: "auth.login_failed", resourceType: "session", status: "failed", metadata: { error_code: "INVALID_CREDENTIALS", source_route: "/login" } });
     redirect("/login?error=invalid_credentials");
   }
@@ -34,6 +36,7 @@ export async function signup(formData: FormData) {
     options: { data: { full_name: parsed.data.fullName } },
   });
   if (error) {
+    logServerEvent({ event: "auth.signup_failed", route: "/signup", errorCode: "SIGNUP_FAILED", environment: process.env.NODE_ENV });
     await recordAuditEvent({ actorUserId: null, action: "auth.signup_failed", resourceType: "user", status: "failed", metadata: { error_code: "SIGNUP_FAILED", source_route: "/signup" } });
     redirect("/signup?error=signup_failed");
   }
@@ -47,6 +50,7 @@ export async function logout() {
   const { data: auth } = await supabase.auth.getUser();
   const { error } = await supabase.auth.signOut({ scope: "local" });
   if (error) {
+    logServerEvent({ event: "auth.logout_failed", route: "/logout", errorCode: "SIGNOUT_FAILED", environment: process.env.NODE_ENV });
     await recordAuditEvent({ actorUserId: auth.user?.id ?? null, action: "auth.logout_failed", resourceType: "session", status: "failed", metadata: { error_code: "SIGNOUT_FAILED", source_route: "/logout" } });
     redirect("/dashboard?error=signout_failed");
   }

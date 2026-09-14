@@ -283,8 +283,8 @@ export class SupabaseWorkerDependencies implements WorkerDependencies {
   }
 }
 
-function safeLog(result: WorkerResult) {
-  process.stdout.write(`${JSON.stringify({ event: "document_worker", ...result })}\n`);
+function safeLog(result: WorkerResult, durationMs: number) {
+  process.stdout.write(`${JSON.stringify({ event: "document_worker.completed", ...result, durationMs })}\n`);
 }
 
 async function main() {
@@ -324,8 +324,9 @@ async function main() {
 
   do {
     try {
+      const startedAt = performance.now();
       const result = await worker.runOnce();
-      safeLog(result);
+      safeLog(result, Math.round(performance.now() - startedAt));
       if (runOnce) {
         if (
           result.outcome === "failed" ||
