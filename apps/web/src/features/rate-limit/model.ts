@@ -1,6 +1,6 @@
 import { createHash, createHmac } from "node:crypto";
 
-export const rateLimitScopes = ["login", "signup", "verification", "upload", "search", "ask", "ask_duplicate", "preview"] as const;
+export const rateLimitScopes = ["login", "signup", "verification", "upload", "search", "ask", "ask_duplicate", "preview", "export"] as const;
 export type RateLimitScope = (typeof rateLimitScopes)[number];
 export type RateLimitRule = { scope: RateLimitScope; limit: number; windowSeconds: number };
 
@@ -13,6 +13,7 @@ const rules: Record<RateLimitScope, RateLimitRule> = {
   ask: { scope: "ask", limit: 20, windowSeconds: 600 },
   ask_duplicate: { scope: "ask_duplicate", limit: 1, windowSeconds: 5 },
   preview: { scope: "preview", limit: 60, windowSeconds: 600 },
+  export: { scope: "export", limit: 3, windowSeconds: 3600 },
 };
 
 export const duplicateAskRule = rules.ask_duplicate;
@@ -26,6 +27,7 @@ export function ruleForRequest(pathname: string, method: string, hasQuery: boole
   if (pathname === "/search" && method === "GET" && hasQuery) return rules.search;
   if (pathname === "/ask" && method === "GET" && hasQuery) return rules.ask;
   if (/^\/records\/[0-9a-f-]+(?:\/review)?$/.test(pathname) && method === "GET") return rules.preview;
+  if (pathname === "/api/privacy/export" && method === "GET") return rules.export;
   return null;
 }
 

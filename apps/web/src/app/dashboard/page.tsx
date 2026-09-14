@@ -4,6 +4,7 @@ import { DocumentUpload } from "@/components/document-upload";
 import { requireUser } from "@/server/auth/require-user";
 import Link from "next/link";
 import { getTimelineEvents } from "@/features/timeline/data";
+import { AccountPrivacyControls } from "@/components/privacy-controls";
 
 export default async function DashboardPage({
   searchParams,
@@ -92,6 +93,7 @@ export default async function DashboardPage({
           </p>
         )}
       </section>
+      <AccountPrivacyControls />
     </main>
   );
 }

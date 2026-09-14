@@ -17,7 +17,7 @@ Optional Ask provider settings are `OLLAMA_BASE_URL` and `OLLAMA_MODEL`. The app
 
 Check the target Supabase project reference and migration status before every database change. Apply an explicitly approved migration once, in filename order. The current files are foundation, authentication profile bootstrap, document worker, structured extraction, review workflow, processing resource limits, audit append-only hardening, and rate limiting.
 
-`202609100001_auth_profile_bootstrap.sql` remains pending and must not be included implicitly in a remote push. Apply migrations one at a time with the repository's targeted migration command and confirm the recorded version after each operation. Take a database backup before production schema changes.
+`202609100001_auth_profile_bootstrap.sql` remains pending and must not be included implicitly in a remote push. `202609140003_privacy_rate_limit.sql` is also pending explicit remote approval; it adds only the dedicated persistent export rate-limit scope. Apply migrations one at a time with the repository's targeted migration command and confirm the recorded version after each operation. Take a database backup before production schema changes.
 
 ## Build and deploy
 
