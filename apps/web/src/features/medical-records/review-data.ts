@@ -1,5 +1,6 @@
 import "server-only";
 import { notFound } from "next/navigation";
+import { z } from "zod";
 import { recordAuditEvent } from "@/features/audit/server";
 import { requireUser } from "@/server/auth/require-user";
 
@@ -15,6 +16,7 @@ export type ReviewRecord = {
 };
 
 export async function getReviewData(documentId: string) {
+  if (!z.uuid().safeParse(documentId).success) notFound();
   const { supabase, user } = await requireUser();
   const { data: document, error } = await supabase.from("documents")
     .select("id,display_name,document_type,event_date,mime_type,file_size,processing_status,created_at,storage_path")

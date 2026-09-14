@@ -722,6 +722,30 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limit_buckets: {
+        Row: {
+          key_hash: string
+          request_count: number
+          scope: string
+          updated_at: string
+          window_start: string
+        }
+        Insert: {
+          key_hash: string
+          request_count: number
+          scope: string
+          updated_at?: string
+          window_start: string
+        }
+        Update: {
+          key_hash?: string
+          request_count?: number
+          scope?: string
+          updated_at?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       share_link_documents: {
         Row: {
           document_id: string
@@ -843,6 +867,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_rate_limit: {
+        Args: {
+          p_key_hash: string
+          p_limit: number
+          p_scope: string
+          p_window_seconds: number
+        }
+        Returns: {
+          allowed: boolean
+          first_denial: boolean
+          remaining: number
+          retry_after_seconds: number
+        }[]
+      }
       claim_document_processing_job: {
         Args: { p_job_id?: string | null; p_lock_timeout_seconds?: number }
         Returns: {

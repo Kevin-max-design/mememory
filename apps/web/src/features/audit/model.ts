@@ -29,6 +29,7 @@ export const auditActions = [
   "share.created",
   "share.accessed",
   "admin.action",
+  "rate_limit.denied",
 ] as const;
 
 export type AuditAction = (typeof auditActions)[number];

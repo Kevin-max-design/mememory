@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { requestCorrelationId } from "@/features/audit/model";
 import { recordAuditEvent } from "@/features/audit/server";
 import { reviewUpdateSchema } from "@/features/medical-records/review-schema";
@@ -15,6 +16,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const parsed = reviewUpdateSchema.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: "The review fields are invalid." }, { status: 400 });
   const { id } = await context.params;
+  if (!z.uuid().safeParse(id).success) return NextResponse.json({ error: "The document identifier is invalid." }, { status: 400 });
   const { data, error } = await supabase.rpc("review_medical_record", {
     p_document_id: id,
     p_record_id: parsed.data.recordId,
