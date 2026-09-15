@@ -7,10 +7,12 @@ Platform references: [Supabase database backups](https://supabase.com/docs/guide
 ## Current recovery posture
 
 - Staging project `ftshvrcaeqbxnewvkamj` is on Supabase Free and PITR is disabled as verified in the dashboard on 2026-09-15.
-- No independently restorable staging database backup has yet been produced and restored.
+- A genuine PostgreSQL 18.6 custom-format logical backup of the `public` and `medmemory_migrations` schemas was created read-only on 2026-09-15 at 05:06:07 UTC. It is stored outside the repository with mode `0600`; size 315,105 bytes; SHA-256 `85e2eb2bea3995cc56c6293b435b98a897cb4d93428833a58ad2508d5ca55629`.
+- `pg_restore --list` successfully read 238 archive entries, including both required schemas and 20 table-data entries. This proves archive readability, not restorability.
+- The disposable restore drill remains blocked: Docker is unavailable and the locally installed Postgres.app server is not running. No restore was attempted against staging or another remote project.
 - The Git migration set and private `medmemory_migrations.applied` ledger make application schema changes reproducible, but Git is not a data backup.
 - Supabase database backups contain Storage metadata, not the private object bytes. Storage needs a separate encrypted backup and restore process.
-- Preliminary RPO and RTO are **UNKNOWN / NOT YET GUARANTEED** until scheduled database and Storage backups and a timed isolated restore drill exist.
+- Preliminary RPO and RTO remain **UNKNOWN / NOT YET GUARANTEED** until backups are scheduled, Storage bytes are protected, and a timed isolated restore drill succeeds.
 
 ## Database backup
 
