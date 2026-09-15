@@ -12,11 +12,7 @@ export function AuthForm({ action, error, mode, message }: AuthFormProps) {
   const isSignup = mode === "signup";
   const notice = authErrorMessage(error);
   const status =
-    message === "check_email"
-      ? "Check your email to confirm your account, then sign in."
-      : message === "signed_out"
-        ? "You have been signed out."
-        : undefined;
+    message === "signed_out" ? "You have been signed out." : undefined;
 
   return (
     <main className="mx-auto min-h-screen max-w-md px-6 py-20">

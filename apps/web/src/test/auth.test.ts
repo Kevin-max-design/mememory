@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { authErrorMessage } from "@/features/auth/errors";
 import { credentialsSchema, signupSchema } from "@/features/auth/schemas";
 
@@ -31,5 +33,19 @@ describe("authentication input", () => {
     expect(authErrorMessage("invalid_credentials")).toBe(
       "The email or password is incorrect.",
     );
+  });
+  it("keeps profile bootstrap bound to validated signup metadata", () => {
+    const sql = readFileSync(
+      resolve(
+        process.cwd(),
+        "../../supabase/migrations/202609100001_auth_profile_bootstrap.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toContain("new.raw_user_meta_data ->> 'full_name'");
+    expect(sql).toContain("left(coalesce");
+    expect(sql).toContain("200)");
+    expect(sql).toContain("insert into public.profiles");
+    expect(sql).toContain("on conflict (id) do nothing");
   });
 });

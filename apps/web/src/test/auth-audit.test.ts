@@ -30,12 +30,32 @@ describe("server-observable auth auditing", () => {
     expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "auth.login_failed", metadata: expect.objectContaining({ error_code: "INVALID_CREDENTIALS" }) }));
   });
 
-  it("records signup success without profile fields", async () => {
+  it("records signup success without profile fields and redirects the session to the dashboard", async () => {
+    const { signup } = await import("@/features/auth/actions");
+    mocks.signup.mockResolvedValue({ data: { user: { id: "00000000-0000-4000-8000-000000000001" }, session: { access_token: "not-logged" } }, error: null });
+    const form = credentials(); form.set("fullName", "Synthetic User");
+    await expect(signup(form)).rejects.toThrow("REDIRECT:/dashboard");
+    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "auth.signup_succeeded" }));
+    expect(JSON.stringify(mocks.audit.mock.calls)).not.toContain("Synthetic User");
+    expect(JSON.stringify(mocks.audit.mock.calls)).not.toContain("not-logged");
+  });
+
+  it("fails safely when hosted auth does not issue an immediate signup session", async () => {
     const { signup } = await import("@/features/auth/actions");
     mocks.signup.mockResolvedValue({ data: { user: { id: "00000000-0000-4000-8000-000000000001" }, session: null }, error: null });
     const form = credentials(); form.set("fullName", "Synthetic User");
-    await expect(signup(form)).rejects.toThrow("REDIRECT:/login?message=check_email");
-    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "auth.signup_succeeded" }));
-    expect(JSON.stringify(mocks.audit.mock.calls)).not.toContain("Synthetic User");
+    await expect(signup(form)).rejects.toThrow("REDIRECT:/signup?error=signup_session_unavailable");
+    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({
+      action: "auth.signup_failed",
+      metadata: expect.objectContaining({ error_code: "SIGNUP_SESSION_UNAVAILABLE" }),
+    }));
+  });
+
+  it("uses the same safe signup error for duplicate or other provider failures", async () => {
+    const { signup } = await import("@/features/auth/actions");
+    mocks.signup.mockResolvedValue({ data: { user: null, session: null }, error: new Error("user already registered") });
+    const form = credentials(); form.set("fullName", "Synthetic User");
+    await expect(signup(form)).rejects.toThrow("REDIRECT:/signup?error=signup_failed");
+    expect(JSON.stringify(mocks.audit.mock.calls)).not.toContain("user already registered");
   });
 });

@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/server";
 
 const allowedTypes = new Set<EmailOtpType>([
   "email",
-  "signup",
   "recovery",
   "email_change",
 ]);

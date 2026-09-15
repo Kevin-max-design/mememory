@@ -40,9 +40,13 @@ export async function signup(formData: FormData) {
     await recordAuditEvent({ actorUserId: null, action: "auth.signup_failed", resourceType: "user", status: "failed", metadata: { error_code: "SIGNUP_FAILED", source_route: "/signup" } });
     redirect("/signup?error=signup_failed");
   }
+  if (!data.user || !data.session) {
+    logServerEvent({ event: "auth.signup_failed", route: "/signup", errorCode: "SIGNUP_SESSION_UNAVAILABLE", environment: process.env.NODE_ENV });
+    await recordAuditEvent({ actorUserId: data.user?.id ?? null, action: "auth.signup_failed", resourceType: "user", resourceId: data.user?.id, status: "failed", metadata: { error_code: "SIGNUP_SESSION_UNAVAILABLE", source_route: "/signup" } });
+    redirect("/signup?error=signup_session_unavailable");
+  }
   await recordAuditEvent({ actorUserId: data.user?.id ?? null, action: "auth.signup_succeeded", resourceType: "user", resourceId: data.user?.id, status: "succeeded", metadata: { source_route: "/signup" } });
-  if (data.session) redirect("/dashboard");
-  redirect("/login?message=check_email");
+  redirect("/dashboard");
 }
 
 export async function logout() {
