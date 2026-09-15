@@ -9,10 +9,12 @@ Platform references: [Supabase database backups](https://supabase.com/docs/guide
 - Staging project `ftshvrcaeqbxnewvkamj` is on Supabase Free and PITR is disabled as verified in the dashboard on 2026-09-15.
 - A genuine PostgreSQL 18.6 custom-format logical backup of the `public` and `medmemory_migrations` schemas was created read-only on 2026-09-15 at 05:06:07 UTC. It is stored outside the repository with mode `0600`; size 315,105 bytes; SHA-256 `85e2eb2bea3995cc56c6293b435b98a897cb4d93428833a58ad2508d5ca55629`.
 - `pg_restore --list` successfully read 238 archive entries, including both required schemas and 20 table-data entries. This proves archive readability, not restorability.
-- The disposable restore drill remains blocked: Docker is unavailable and the locally installed Postgres.app server is not running. No restore was attempted against staging or another remote project.
+- The archive was restored successfully on 2026-09-15 into disposable PostgreSQL 18.3 at `127.0.0.1:5433`; restore execution took 0.222 seconds. The target database was dropped after verification and the local cluster and backup were preserved.
+- Restore verification matched all 19 public tables and their row counts, 99 portable constraints, 23 validated foreign keys, 8 migration ledger entries/checksums, RLS state for all tables, 19 policies, 12 function security signatures/configurations, and 74 indexes.
+- PostgreSQL 18.3 represented 119 additional `NOT NULL` attributes as catalog constraints; all other constraint definitions matched. The restore used `--no-owner`: all 19 authenticated and 130 service-role table grants matched, while 133 staging `postgres` ownership-derived privileges became privileges of the disposable local owner. These are expected portability differences, with no extra grants.
 - The Git migration set and private `medmemory_migrations.applied` ledger make application schema changes reproducible, but Git is not a data backup.
 - Supabase database backups contain Storage metadata, not the private object bytes. Storage needs a separate encrypted backup and restore process.
-- Preliminary RPO and RTO remain **UNKNOWN / NOT YET GUARANTEED** until backups are scheduled, Storage bytes are protected, and a timed isolated restore drill succeeds.
+- Preliminary RPO and RTO remain **UNKNOWN / NOT YET GUARANTEED** until backups are scheduled, Storage bytes are protected, and the complete incident procedure is timed. The measured 0.222-second database restore execution is evidence for this small snapshot only and is not an operational RTO.
 
 ## Database backup
 
