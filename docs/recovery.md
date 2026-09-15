@@ -14,6 +14,8 @@ Platform references: [Supabase database backups](https://supabase.com/docs/guide
 - PostgreSQL 18.3 represented 119 additional `NOT NULL` attributes as catalog constraints; all other constraint definitions matched. The restore used `--no-owner`: all 19 authenticated and 130 service-role table grants matched, while 133 staging `postgres` ownership-derived privileges became privileges of the disposable local owner. These are expected portability differences, with no extra grants.
 - The Git migration set and private `medmemory_migrations.applied` ledger make application schema changes reproducible, but Git is not a data backup.
 - Supabase database backups contain Storage metadata, not the private object bytes. Storage needs a separate encrypted backup and restore process.
+- A synthetic Storage recovery drill completed on 2026-09-15. A 64-byte non-medical PDF was uploaded to the reserved service-only path `_recovery-test/<random-uuid>/synthetic.pdf`, downloaded, encrypted outside Git, deleted, restored without overwrite, checksummed, and deleted again. Source, backup, and restored SHA-256 were identical: `e587d02803e0321ef7edb3cfea442e2da4a918399b38e0bce88a71810eadb4d5`.
+- The private bucket remained private and anonymous download was denied. The reserved path cannot satisfy the authenticated owner policy because it has no user UUID prefix or matching document row; recovery access therefore remains restricted to the server-side recovery identity. The bucket object count was 7 before and after, the reserved prefix returned to zero objects, and the Storage policy digest remained unchanged.
 - Preliminary RPO and RTO remain **UNKNOWN / NOT YET GUARANTEED** until backups are scheduled, Storage bytes are protected, and the complete incident procedure is timed. The measured 0.222-second database restore execution is evidence for this small snapshot only and is not an operational RTO.
 
 ## Database backup
@@ -58,7 +60,27 @@ Database recovery restores only rows in `storage.objects`; it does not restore o
 {user_id}/{document_id}/normalized/{generated_filename}
 ```
 
-Use a server-side service identity and a manifest containing bucket, normalized path, size, MIME type, and SHA-256 digest. Never include signed URLs or keys. Restore into a private `medical-records` bucket only after the database restore, validate each path with the application ownership rules, upload without overwrite, compare digest and size, then sample through an authenticated owner request. Reconcile metadata rows against object bytes and quarantine mismatches. Supabase project cloning does not copy these object bytes or bucket settings.
+Use a server-side service identity and an encrypted, off-host object-byte backup. Back up originals and normalized objects separately. The manifest must contain:
+
+- normalized object path
+- byte size
+- MIME type
+- SHA-256 digest
+- UTC backup timestamp
+
+Never include signed URLs, credentials, encryption keys, or object content in the manifest or logs. Keep encryption keys in a managed key service separate from the backup artifacts.
+
+Restore into a private `medical-records` bucket only after the database restore:
+
+1. Verify the target project and private bucket before any write.
+2. Validate each manifest path against the application ownership rules and reconcile it with the owning database document.
+3. Refuse an existing destination; never use overwrite or `upsert` during recovery.
+4. Decrypt the backup in controlled memory, upload the bytes, and compare restored size and SHA-256 with the manifest.
+5. Reconcile database rows and object paths in both directions. Quarantine missing, extra, or mismatched objects and escalate rather than deleting them automatically.
+6. Sample access through the authenticated owner path and confirm anonymous and cross-owner access remain denied.
+7. Remove only explicitly identified recovery-test objects and credentials. Record cleanup and investigate any residue.
+
+The verified 2026-09-15 drill used an encrypted AES-256-GCM artifact under `/private/tmp/medmemory-storage-recovery`, outside Git, with file mode `0600`. Its ephemeral drill key was not persisted, so the artifact proves encrypted local handling but is not a usable retained operational backup. Supabase project cloning does not copy object bytes or bucket settings. Automated Storage backup, off-host retention, managed encryption-key custody, and a scheduled restore exercise are still required before assigning a guaranteed RPO or RTO.
 
 ## Worker recovery
 
