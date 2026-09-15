@@ -17,7 +17,7 @@ Optional Ask provider settings are `OLLAMA_BASE_URL` and `OLLAMA_MODEL`. The app
 
 Check the target Supabase project reference and migration status before every database change. Apply an explicitly approved migration once, in filename order. The current files are foundation, authentication profile bootstrap, document worker, structured extraction, review workflow, processing resource limits, audit append-only hardening, and rate limiting.
 
-`202609100001_auth_profile_bootstrap.sql` remains pending and must not be included implicitly in a remote push. `202609140003_privacy_rate_limit.sql` is also pending explicit remote approval; it adds only the dedicated persistent export rate-limit scope. Apply migrations one at a time with the repository's targeted migration command and confirm the recorded version after each operation. Take a database backup before production schema changes.
+`202609100001_auth_profile_bootstrap.sql` remains pending and must not be included implicitly in a remote push. `202609140003_privacy_rate_limit.sql` is applied on staging. Apply migrations one at a time with the repository's targeted migration command and confirm the recorded version after each operation. Take and restore-test a database backup before production schema changes.
 
 ## Build and deploy
 
@@ -38,6 +38,8 @@ Check the target Supabase project reference and migration status before every da
 ## Rollback
 
 Roll back the application to the previous immutable commit first. Stop workers before rolling back a processor contract. Database migrations are forward-only by default: restore from the verified backup or ship a reviewed corrective migration instead of reversing append-only audit or ownership controls in place. Confirm `/api/ready`, worker configuration, and queued-job counts after recovery.
+
+The current known-good checkpoint before recovery documentation is `1eba1079063957abb76670636bf84cd67b4fddf9`. See `docs/recovery.md` for database, Storage, worker, and incident procedures.
 
 ## Secret rotation
 
