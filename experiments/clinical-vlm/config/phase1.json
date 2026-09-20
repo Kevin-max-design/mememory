@@ -1,0 +1,38 @@
+{
+  "experiment_version": "phase1-v1",
+  "schema_version": "1.0.0",
+  "prompt_version": "extract-v1",
+  "selected_model": {
+    "model_id": "mlx-community/SmolVLM2-2.2B-Instruct-mlx",
+    "source_model_id": "HuggingFaceTB/SmolVLM2-2.2B-Instruct",
+    "revision": "2b4b371c65a56f5412c333492c083a42a639a661",
+    "runtime": "mlx-vlm",
+    "enabled": false,
+    "local_path": null
+  },
+  "rendering": {
+    "dpi": 200,
+    "color_mode": "RGB",
+    "alpha": false,
+    "preprocessing": ["render_only"],
+    "page_order": "ascending"
+  },
+  "generation": {
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "max_output_tokens": 4096,
+    "seed": 17,
+    "structured_output": "json_schema"
+  },
+  "strategy": {
+    "pages_per_request": 1,
+    "merge": "deterministic_provenance_preserving",
+    "bbox_policy": "null_unless_model_grounding_is_verified"
+  },
+  "privacy": {
+    "network_inference_allowed": false,
+    "log_raw_text": false,
+    "commit_inputs": false,
+    "commit_predictions": false
+  }
+}

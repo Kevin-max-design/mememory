@@ -1,0 +1,24 @@
+# Local model/runtime state
+models/
+.cache/
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Medical source material and rendered pages must stay local and untracked.
+inputs/
+artifacts/
+renders/
+predictions/
+benchmark/results/
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example

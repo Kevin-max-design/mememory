@@ -1,0 +1,290 @@
+{
+  "$defs": {
+    "Certainty": {
+      "enum": [
+        "certain",
+        "possible",
+        "suspected",
+        "ruled_out",
+        "unknown"
+      ],
+      "title": "Certainty",
+      "type": "string"
+    },
+    "ClinicalContext": {
+      "additionalProperties": false,
+      "properties": {
+        "certainty": {
+          "$ref": "#/$defs/Certainty",
+          "default": "certain"
+        },
+        "negation": {
+          "$ref": "#/$defs/Negation",
+          "default": "affirmed"
+        },
+        "subject": {
+          "$ref": "#/$defs/Subject",
+          "default": "patient"
+        },
+        "temporality": {
+          "$ref": "#/$defs/Temporality",
+          "default": "unknown"
+        }
+      },
+      "title": "ClinicalContext",
+      "type": "object"
+    },
+    "ClinicalFact": {
+      "additionalProperties": false,
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "context": {
+          "$ref": "#/$defs/ClinicalContext"
+        },
+        "data": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Data",
+          "type": "object"
+        },
+        "normalized_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Normalized Value"
+        },
+        "page": {
+          "minimum": 1,
+          "title": "Page",
+          "type": "integer"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section"
+        },
+        "source_block_ids": {
+          "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Source Block Ids",
+          "type": "array"
+        },
+        "source_text": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Source Text",
+          "type": "string"
+        },
+        "status": {
+          "const": "candidate",
+          "default": "candidate",
+          "title": "Status",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/FactType"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "type",
+        "value",
+        "page",
+        "source_text",
+        "confidence"
+      ],
+      "title": "ClinicalFact",
+      "type": "object"
+    },
+    "FactType": {
+      "enum": [
+        "document_metadata",
+        "patient",
+        "symptom",
+        "diagnosis",
+        "medication",
+        "allergy",
+        "lab_result",
+        "vital",
+        "imaging_finding",
+        "procedure",
+        "past_medical_history",
+        "treatment_course",
+        "discharge_advice",
+        "follow_up",
+        "clinical_finding",
+        "unmapped"
+      ],
+      "title": "FactType",
+      "type": "string"
+    },
+    "Negation": {
+      "enum": [
+        "affirmed",
+        "negated",
+        "unknown"
+      ],
+      "title": "Negation",
+      "type": "string"
+    },
+    "Subject": {
+      "enum": [
+        "patient",
+        "family",
+        "other",
+        "unknown"
+      ],
+      "title": "Subject",
+      "type": "string"
+    },
+    "Temporality": {
+      "enum": [
+        "current",
+        "historical",
+        "future",
+        "unknown"
+      ],
+      "title": "Temporality",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "document_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Document Id",
+      "type": "string"
+    },
+    "facts": {
+      "items": {
+        "$ref": "#/$defs/ClinicalFact"
+      },
+      "maxItems": 2000,
+      "title": "Facts",
+      "type": "array"
+    },
+    "prompt_version": {
+      "const": "extract-v1",
+      "default": "extract-v1",
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "pattern": "^[A-Z0-9_]{2,80}$",
+        "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "document_id"
+  ],
+  "title": "CanonicalExtraction",
+  "type": "object"
+}

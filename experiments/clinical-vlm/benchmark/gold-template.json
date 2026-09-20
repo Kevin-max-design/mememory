@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "fixture_id": "synthetic-template-v1",
+  "document_id": "synthetic-document-001",
+  "source_kind": "synthetic",
+  "facts": [
+    {
+      "gold_id": "lab-1",
+      "fact": {
+        "type": "lab_result",
+        "value": "13.5",
+        "normalized_value": null,
+        "page": 1,
+        "source_text": "Synthetic analyte A 13.5 g/dL",
+        "source_block_ids": ["synthetic-block-1"],
+        "bbox": null,
+        "section": "Synthetic laboratory results",
+        "confidence": 1.0,
+        "status": "candidate",
+        "context": {
+          "subject": "patient",
+          "negation": "affirmed",
+          "certainty": "certain",
+          "temporality": "current"
+        },
+        "data": {
+          "test_name": "Synthetic analyte A",
+          "value": "13.5",
+          "unit": "g/dL",
+          "reference_range": "12-16",
+          "abnormal_flag": null
+        }
+      },
+      "clinically_relevant": true,
+      "notes": "Synthetic tuple used to demonstrate the annotation format."
+    }
+  ],
+  "annotated_by": "human-reviewer",
+  "annotation_version": 1
+}

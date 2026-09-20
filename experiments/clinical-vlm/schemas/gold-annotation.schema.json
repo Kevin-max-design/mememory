@@ -1,0 +1,341 @@
+{
+  "$defs": {
+    "Certainty": {
+      "enum": [
+        "certain",
+        "possible",
+        "suspected",
+        "ruled_out",
+        "unknown"
+      ],
+      "title": "Certainty",
+      "type": "string"
+    },
+    "ClinicalContext": {
+      "additionalProperties": false,
+      "properties": {
+        "certainty": {
+          "$ref": "#/$defs/Certainty",
+          "default": "certain"
+        },
+        "negation": {
+          "$ref": "#/$defs/Negation",
+          "default": "affirmed"
+        },
+        "subject": {
+          "$ref": "#/$defs/Subject",
+          "default": "patient"
+        },
+        "temporality": {
+          "$ref": "#/$defs/Temporality",
+          "default": "unknown"
+        }
+      },
+      "title": "ClinicalContext",
+      "type": "object"
+    },
+    "ClinicalFact": {
+      "additionalProperties": false,
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "context": {
+          "$ref": "#/$defs/ClinicalContext"
+        },
+        "data": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Data",
+          "type": "object"
+        },
+        "normalized_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Normalized Value"
+        },
+        "page": {
+          "minimum": 1,
+          "title": "Page",
+          "type": "integer"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section"
+        },
+        "source_block_ids": {
+          "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Source Block Ids",
+          "type": "array"
+        },
+        "source_text": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Source Text",
+          "type": "string"
+        },
+        "status": {
+          "const": "candidate",
+          "default": "candidate",
+          "title": "Status",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/FactType"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "type",
+        "value",
+        "page",
+        "source_text",
+        "confidence"
+      ],
+      "title": "ClinicalFact",
+      "type": "object"
+    },
+    "FactType": {
+      "enum": [
+        "document_metadata",
+        "patient",
+        "symptom",
+        "diagnosis",
+        "medication",
+        "allergy",
+        "lab_result",
+        "vital",
+        "imaging_finding",
+        "procedure",
+        "past_medical_history",
+        "treatment_course",
+        "discharge_advice",
+        "follow_up",
+        "clinical_finding",
+        "unmapped"
+      ],
+      "title": "FactType",
+      "type": "string"
+    },
+    "GoldFact": {
+      "additionalProperties": false,
+      "properties": {
+        "clinically_relevant": {
+          "default": true,
+          "title": "Clinically Relevant",
+          "type": "boolean"
+        },
+        "fact": {
+          "$ref": "#/$defs/ClinicalFact"
+        },
+        "gold_id": {
+          "pattern": "^[a-zA-Z0-9_.-]{1,100}$",
+          "title": "Gold Id",
+          "type": "string"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        }
+      },
+      "required": [
+        "gold_id",
+        "fact"
+      ],
+      "title": "GoldFact",
+      "type": "object"
+    },
+    "Negation": {
+      "enum": [
+        "affirmed",
+        "negated",
+        "unknown"
+      ],
+      "title": "Negation",
+      "type": "string"
+    },
+    "Subject": {
+      "enum": [
+        "patient",
+        "family",
+        "other",
+        "unknown"
+      ],
+      "title": "Subject",
+      "type": "string"
+    },
+    "Temporality": {
+      "enum": [
+        "current",
+        "historical",
+        "future",
+        "unknown"
+      ],
+      "title": "Temporality",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "annotated_by": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Annotated By",
+      "type": "string"
+    },
+    "annotation_version": {
+      "minimum": 1,
+      "title": "Annotation Version",
+      "type": "integer"
+    },
+    "document_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Document Id",
+      "type": "string"
+    },
+    "facts": {
+      "items": {
+        "$ref": "#/$defs/GoldFact"
+      },
+      "maxItems": 2000,
+      "title": "Facts",
+      "type": "array"
+    },
+    "fixture_id": {
+      "pattern": "^[a-zA-Z0-9_.-]{1,100}$",
+      "title": "Fixture Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_kind": {
+      "enum": [
+        "synthetic",
+        "deidentified",
+        "approved_local"
+      ],
+      "title": "Source Kind",
+      "type": "string"
+    }
+  },
+  "required": [
+    "fixture_id",
+    "document_id",
+    "source_kind",
+    "annotated_by",
+    "annotation_version"
+  ],
+  "title": "GoldAnnotation",
+  "type": "object"
+}

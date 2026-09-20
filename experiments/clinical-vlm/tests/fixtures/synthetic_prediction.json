@@ -1,0 +1,94 @@
+{
+  "schema_version": "1.0.0",
+  "prompt_version": "extract-v1",
+  "document_id": "synthetic-document-001",
+  "facts": [
+    {
+      "type": "lab_result",
+      "value": "13.5",
+      "normalized_value": null,
+      "page": 1,
+      "source_text": "Synthetic analyte A 13.5 g/dL",
+      "source_block_ids": ["block-1"],
+      "bbox": null,
+      "section": "Laboratory results",
+      "confidence": 0.95,
+      "status": "candidate",
+      "context": {
+        "subject": "patient",
+        "negation": "affirmed",
+        "certainty": "certain",
+        "temporality": "current"
+      },
+      "data": {
+        "test_name": "Synthetic analyte A",
+        "value": "13.5",
+        "unit": "g/dL"
+      }
+    },
+    {
+      "type": "medication",
+      "value": "Examplemed",
+      "normalized_value": null,
+      "page": 1,
+      "source_text": "Medication: Examplemed 5 mg oral once daily",
+      "source_block_ids": ["block-2"],
+      "bbox": null,
+      "section": "Medication",
+      "confidence": 0.9,
+      "status": "candidate",
+      "context": {
+        "subject": "patient",
+        "negation": "affirmed",
+        "certainty": "certain",
+        "temporality": "current"
+      },
+      "data": {
+        "name": "Examplemed",
+        "strength": "5 mg",
+        "dose": "5 mg",
+        "route": "oral",
+        "frequency": "once daily"
+      }
+    },
+    {
+      "type": "diagnosis",
+      "value": "Synthetic condition B",
+      "normalized_value": null,
+      "page": 2,
+      "source_text": "Patient denies Synthetic condition B",
+      "source_block_ids": ["block-3"],
+      "bbox": null,
+      "section": "History",
+      "confidence": 0.8,
+      "status": "candidate",
+      "context": {
+        "subject": "patient",
+        "negation": "negated",
+        "certainty": "certain",
+        "temporality": "current"
+      },
+      "data": {}
+    },
+    {
+      "type": "diagnosis",
+      "value": "Synthetic condition C",
+      "normalized_value": null,
+      "page": 2,
+      "source_text": "Rule out Synthetic condition C",
+      "source_block_ids": ["block-4"],
+      "bbox": null,
+      "section": "Assessment",
+      "confidence": 0.75,
+      "status": "candidate",
+      "context": {
+        "subject": "patient",
+        "negation": "affirmed",
+        "certainty": "ruled_out",
+        "temporality": "current"
+      },
+      "data": {}
+    }
+  ],
+  "warnings": []
+}

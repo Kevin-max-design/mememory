@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medmemory-clinical-vlm-experiment"
+version = "0.1.0"
+description = "Isolated, local-only benchmark contracts for compact clinical document VLMs"
+requires-python = ">=3.10"
+dependencies = ["pydantic>=2.10,<3"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.setuptools.packages.find]
+where = ["src"]
