@@ -165,6 +165,7 @@ def main() -> int:
         print(f"completed={len(completed)}/{len(documents)}")
         return 0
 
+    import mlx.core as mx
     from mlx_vlm import generate, load
     from mlx_vlm.prompt_utils import apply_chat_template
     from mlx_vlm.structured import build_json_schema_logits_processor
@@ -172,7 +173,57 @@ def main() -> int:
     load_started = perf_counter()
     model, processor = load(str(MODEL), lazy=False, strict=True)
     model_load_seconds = perf_counter() - load_started
-    schema_processor = build_json_schema_logits_processor(processor.tokenizer, schema)
+    base_schema_processor = build_json_schema_logits_processor(processor.tokenizer, schema)
+
+    class CompletedGrammarEosAdapter:
+        """Force EOS only when LLGuidance has consumed a complete JSON document.
+
+        mlx-vlm 0.7.1 can ask LLGuidance for one more token after the final JSON
+        delimiter. LLGuidance reports this exact state as a parser-stopped error
+        before mlx-vlm can sample the configured Qwen EOS token. No other parser
+        or generation error is intercepted.
+        """
+
+        requires_immediate_decode_yield = True
+
+        def __init__(self, wrapped, eos_token_id: int) -> None:
+            self.wrapped = wrapped
+            self.eos_token_id = eos_token_id
+
+        def clone(self):
+            wrapped = self.wrapped.clone() if hasattr(self.wrapped, "clone") else self.wrapped
+            return CompletedGrammarEosAdapter(wrapped, self.eos_token_id)
+
+        def reset(self) -> None:
+            if hasattr(self.wrapped, "reset"):
+                self.wrapped.reset()
+
+        def _force_eos(self, logits):
+            allowed = mx.arange(logits.shape[-1]) == self.eos_token_id
+            blocked = mx.full(logits.shape, float("-inf"), dtype=logits.dtype)
+            return mx.where(allowed, logits, blocked)
+
+        def _call(self, callback, *args):
+            try:
+                return callback(*args)
+            except ValueError as error:
+                if "LLGuidance matcher error: parser stopped in consume_token" not in str(error):
+                    raise
+                return self._force_eos(args[-1])
+
+        def __call__(self, input_ids, logits):
+            return self._call(self.wrapped, input_ids, logits)
+
+        def process_last_token(self, last_token, logits):
+            callback = getattr(self.wrapped, "process_last_token", None)
+            if callback is None:
+                return self.__call__(mx.array([last_token]), logits)
+            return self._call(callback, last_token, logits)
+
+    eos_token_id = model.config.eos_token_id
+    if isinstance(eos_token_id, (list, tuple)):
+        eos_token_id = eos_token_id[0]
+    schema_processor = CompletedGrammarEosAdapter(base_schema_processor, int(eos_token_id))
     formatted_prompt = apply_chat_template(
         processor,
         model.config,
@@ -193,6 +244,7 @@ def main() -> int:
             "network_blocked": True,
             "model_load_seconds": model_load_seconds,
             "generation": {"max_tokens": 4096, "temperature": 0.0, "seed": 17},
+            "structured_completion_compatibility": "llguidance-final-token-to-configured-eos",
         },
     )
 
