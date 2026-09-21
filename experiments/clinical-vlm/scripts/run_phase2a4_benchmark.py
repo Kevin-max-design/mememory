@@ -251,6 +251,10 @@ def main() -> int:
     for item in unfinished:
         document_id = str(item["document_id"])
         image_path = args.benchmark / "pages" / f"{document_id}.png"
+        # The LLGuidance matcher is stateful. A fresh document must always begin
+        # with a reset matcher; otherwise a completed prior grammar immediately
+        # forces EOS before the model can emit the next document.
+        schema_processor.reset()
         started = perf_counter()
         result = generate(
             model,
