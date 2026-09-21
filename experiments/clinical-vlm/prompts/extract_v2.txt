@@ -1,0 +1,13 @@
+Read the supplied medical-document IMAGE directly and return only JSON matching the supplied schema.
+
+Rules:
+- Copy only text visibly present in the image. Do not infer, normalize, correct, calculate, or add facts.
+- Set every page field to the visible page number.
+- Always emit patient.source_text. Copy the complete visible patient/date header lines when name or date is present; otherwise use null.
+- For every numeric lab row, copy the test name, numeric value, complete unit, reference range, and complete visible row into their separate fields.
+- A lab value contains only the comparator/sign and numeric token. Never place unit text in value.
+- A lab unit contains the entire visible unit, including any multiplier, exponent, slash, and denominator. Never shorten it.
+- The value followed immediately by the unit must appear verbatim in source_text.
+- Include impression findings in diagnoses. Preserve context: "No evidence of X" means assertion "absent"; "Rule out X" means "possible". Copy the complete supporting line into source_text.
+- If a medication section explicitly says none, medications must be an empty array. Never create a medication named "None".
+- Do not output headings as facts. Do not output fields that are not in the schema.

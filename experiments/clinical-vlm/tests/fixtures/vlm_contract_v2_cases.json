@@ -1,0 +1,46 @@
+{
+  "valid_labs": [
+    {
+      "test_name": "Glucose",
+      "value": "5.2",
+      "unit": "mmol/L",
+      "reference_range": "3.9 - 5.5",
+      "page": 1,
+      "source_text": "Glucose 5.2 mmol/L 3.9 - 5.5"
+    },
+    {
+      "test_name": "Oxygen Saturation",
+      "value": "98",
+      "unit": "%",
+      "reference_range": "95 - 100",
+      "page": 2,
+      "source_text": "Oxygen Saturation 98 % 95 - 100"
+    },
+    {
+      "test_name": "Platelet Count",
+      "value": "291",
+      "unit": "x10^3/uL",
+      "reference_range": "150 - 450",
+      "page": 3,
+      "source_text": "Platelet Count 291 x10^3/uL 150 - 450"
+    }
+  ],
+  "invalid_labs": [
+    {
+      "test_name": "Platelet Count",
+      "value": "291 x10^3/uL",
+      "unit": "uL",
+      "reference_range": "150 - 450",
+      "page": 1,
+      "source_text": "Platelet Count 291 x10^3/uL 150 - 450"
+    },
+    {
+      "test_name": "WBC Count",
+      "value": "7.4",
+      "unit": "uL",
+      "reference_range": "4.0 - 11.0",
+      "page": 1,
+      "source_text": "WBC Count 7.4 x10^3/uL 4.0 - 11.0"
+    }
+  ]
+}
