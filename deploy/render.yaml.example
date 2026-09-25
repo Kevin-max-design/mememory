@@ -1,0 +1,106 @@
+# Operational template only. This file does not deploy anything by itself.
+# Connect the repository in Render, review every prompted value, then manually deploy
+# commit 5cda705de0f9b181d47fd49a1f25e645545ef460 with auto-deploy disabled.
+services:
+  - type: web
+    name: medmemory-web
+    runtime: node
+    plan: 1c-2g
+    numInstances: 1
+    autoDeployTrigger: "off"
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: DOCUMENT_PROCESSOR_URL="http://${DOCUMENT_PROCESSOR_HOSTPORT}" npm start
+    healthCheckPath: /api/ready
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPPORT_EMAIL
+        sync: false
+      - key: NEXT_PUBLIC_ALLOW_INDEXING
+        value: "false"
+      - key: DOCUMENT_PROCESSOR_HOSTPORT
+        fromService:
+          type: pserv
+          name: medmemory-processor
+          property: hostport
+      - key: DOCUMENT_PROCESSOR_SECRET
+        fromService:
+          type: pserv
+          name: medmemory-processor
+          envVarKey: DOCUMENT_PROCESSOR_SECRET
+      - key: RATE_LIMIT_HASH_SECRET
+        generateValue: true
+      - key: RATE_LIMIT_TRUSTED_PROXY_HEADER
+        value: cf-connecting-ip
+
+  - type: pserv
+    name: medmemory-processor
+    runtime: docker
+    plan: 2c-8g
+    numInstances: 1
+    autoDeployTrigger: "off"
+    dockerfilePath: ./services/document-processor/Dockerfile
+    dockerContext: ./services/document-processor
+    maxShutdownDelaySeconds: 120
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: DOCUMENT_PROCESSOR_SECRET
+        generateValue: true
+      - key: ENABLE_PADDLEOCR
+        sync: false
+      - key: OCR_PRIMARY_PROVIDER
+        value: paddleocr
+      - key: OCR_FALLBACK_PROVIDER
+        value: tesseract
+      - key: ENABLE_OPENMED
+        sync: false
+      - key: OPENMED_LOCAL_ONLY
+        value: "true"
+      - key: OPENMED_MODEL_DIR
+        sync: false
+      - key: ENABLE_OCR_DEBUG
+        value: "false"
+
+  - type: worker
+    name: medmemory-document-worker
+    runtime: node
+    plan: 1c-2g
+    numInstances: 1
+    autoDeployTrigger: "off"
+    buildCommand: npm ci --include=dev
+    startCommand: DOCUMENT_PROCESSOR_URL="http://${DOCUMENT_PROCESSOR_HOSTPORT}" npm run worker:documents
+    maxShutdownDelaySeconds: 300
+    envVars:
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        fromService:
+          type: web
+          name: medmemory-web
+          envVarKey: NEXT_PUBLIC_SUPABASE_URL
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        fromService:
+          type: web
+          name: medmemory-web
+          envVarKey: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        fromService:
+          type: web
+          name: medmemory-web
+          envVarKey: SUPABASE_SERVICE_ROLE_KEY
+      - key: DOCUMENT_PROCESSOR_HOSTPORT
+        fromService:
+          type: pserv
+          name: medmemory-processor
+          property: hostport
+      - key: DOCUMENT_PROCESSOR_SECRET
+        fromService:
+          type: pserv
+          name: medmemory-processor
+          envVarKey: DOCUMENT_PROCESSOR_SECRET
