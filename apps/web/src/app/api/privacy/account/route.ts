@@ -23,7 +23,11 @@ export async function DELETE(request: Request) {
   if (!result.ok) {
     await recordAuditEvent({ actorUserId: auth.user.id, action: "account.deletion_failed", resourceType: "account", status: "failed", metadata: { error_code: result.code, source_route: "/api/privacy/account" } }, admin);
     logServerEvent({ event: "account.deletion_failed", route: "/api/privacy/account", errorCode: result.code, environment: process.env.NODE_ENV });
-    return NextResponse.json({ code: "account_delete_failed" }, { status: 502, headers: { "Cache-Control": "no-store" } });
+    const active = result.code === "ACCOUNT_OPERATIONS_ACTIVE";
+    return NextResponse.json(
+      { code: active ? "account_operations_active" : "account_delete_failed" },
+      { status: active ? 409 : 502, headers: { "Cache-Control": "no-store" } },
+    );
   }
   await recordAuditEvent({ actorUserId: null, action: "account.deleted", resourceType: "account", status: "succeeded", metadata: { source_route: "/api/privacy/account" } }, admin);
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store", "Clear-Site-Data": '"cookies", "storage"' } });

@@ -10,6 +10,10 @@ Configure these values in the server environment. Use distinct random secrets pe
 - `DOCUMENT_PROCESSOR_URL`
 - `DOCUMENT_PROCESSOR_SECRET` (server and worker only, at least 32 characters)
 - `RATE_LIMIT_HASH_SECRET` (server only, at least 32 random characters)
+- `RATE_LIMIT_TRUSTED_PROXY_HEADER` (`cf-connecting-ip`, `x-real-ip`, or
+  `x-forwarded-for`; the public edge must strip inbound copies and regenerate it)
+
+`DOCUMENT_PROCESSOR_URL` must use HTTPS whenever it is not a loopback address.
 
 Optional Ask provider settings are `OLLAMA_BASE_URL` and `OLLAMA_MODEL`. The application must remain useful when they are absent.
 
@@ -17,14 +21,21 @@ Optional Ask provider settings are `OLLAMA_BASE_URL` and `OLLAMA_MODEL`. The app
 
 Check the target Supabase project reference and migration status before every database change. Apply an explicitly approved migration once, in filename order. The current files are foundation, authentication profile bootstrap, document worker, structured extraction, review workflow, processing resource limits, audit append-only hardening, and rate limiting.
 
-`202609100001_auth_profile_bootstrap.sql` remains pending and must not be included implicitly in a remote push. `202609140003_privacy_rate_limit.sql` is applied on staging. Apply migrations one at a time with the repository's targeted migration command and confirm the recorded version after each operation. Take and restore-test a database backup before production schema changes.
+Staging has applied the repository migrations through
+`202609140003_privacy_rate_limit.sql`, including
+`202609100001_auth_profile_bootstrap.sql`. The local
+`202609240001_account_deletion_guard.sql` migration is pending explicit remote approval.
+Apply migrations one at a time with the targeted migration command and confirm the
+recorded version after each operation. Take and restore-test a database backup before
+production schema changes.
 
 ## Build and deploy
 
 1. Run `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`, and `git diff --check` from the repository root.
 2. Scan the browser build for server secrets and server-only imports.
 3. Deploy an immutable commit using the hosting platform's production build command (`npm run build`) and start command (`npm start`).
-4. Deploy the Python document processor separately with its pinned Python runtime and dependencies.
+4. Deploy the Python document processor separately with Python 3.10.16. Build from a
+   reviewed immutable dependency artifact; the current Python ranges are not a lockfile.
 5. Start the document worker with `npm run worker:documents`; use `-- --check-config` before accepting jobs and `-- --once` for a controlled smoke run.
 
 ## Smoke checks
@@ -50,5 +61,14 @@ Rotate the Supabase service-role key, processor shared secret, and rate-limit HM
 - Readiness checks web configuration and Supabase connectivity; processor health is monitored with the processor's own health endpoint and worker alerts.
 - Structured logs require the deployment platform to provide retention, alerting, and access controls.
 - A strict Content Security Policy is deferred until signed Supabase previews and all deployment origins are enumerated and tested.
-- In-process rate-limit fallback is per instance and exists only for database outages; persistent Supabase buckets are the production control.
+- Production rate limiting fails closed with 503 when the shared PostgreSQL limiter is
+  unavailable. The in-process limiter is development-only.
+- The selected trusted proxy header is safe only when the deployment edge strips and
+  regenerates it; verify this with a deployed spoofing test before public traffic.
+- The processor enforces document-wide OCR budgets, but OS CPU/memory/concurrency and
+  egress isolation remain deployment responsibilities.
+- Python dependencies currently use bounded ranges without hashes; create and verify an
+  immutable lock artifact before the production image is built.
+- `202609240001_account_deletion_guard.sql` must be applied and verified before account
+  deletion is enabled in the release candidate.
 - Deployment, database, and processor rollback remain operator-run procedures.

@@ -14,8 +14,8 @@ function chain(error: unknown = null) {
   return result;
 }
 
-function mockAdmin(options: { jobError?: unknown; cleanupError?: unknown } = {}) {
-  const upload = vi.fn().mockResolvedValue({ error: null });
+function mockAdmin(options: { jobError?: unknown; uploadError?: unknown; cleanupError?: unknown } = {}) {
+  const upload = vi.fn().mockResolvedValue({ error: options.uploadError ?? null });
   const remove = vi.fn().mockResolvedValue({ error: options.cleanupError ?? null });
   const deleteChain = chain(options.cleanupError);
   const updateChain = chain();
@@ -57,9 +57,19 @@ describe("upload persistence", () => {
     );
     expect(storagePath).not.toContain(input.originalFilename);
     expect(admin.documentInsert).toHaveBeenCalledOnce();
+    expect(admin.documentInsert.mock.invocationCallOrder[0]).toBeLessThan(
+      admin.upload.mock.invocationCallOrder[0],
+    );
     expect(admin.jobInsert).toHaveBeenCalledWith(
       expect.objectContaining({ job_type: "analyze", status: "queued" }),
     );
+  });
+
+  it("reserves the owner-bound row before Storage and removes it if upload fails", async () => {
+    const admin = mockAdmin({ uploadError: new Error("simulated") });
+    await expect(persistValidatedUpload(admin.client, input)).resolves.toEqual({ ok: false, code: "upload_failed" });
+    expect(admin.documentInsert.mock.invocationCallOrder[0]).toBeLessThan(admin.upload.mock.invocationCallOrder[0]);
+    expect(admin.deleteChain.eq).toHaveBeenCalledWith("id", expect.any(String));
   });
 
   it("removes the object and document when job creation fails", async () => {

@@ -21,9 +21,16 @@ export async function deleteOwnedDocument(admin: Admin, userId: string, document
 }
 
 export async function deleteOwnedAccountData(admin: Admin, userId: string) {
+  const { error: markerError } = await admin.from("profiles")
+    .update({ deletion_requested_at: new Date().toISOString() }).eq("id", userId);
+  if (markerError) return { ok: false as const, code: "ACCOUNT_DELETION_MARKER_FAILED" };
+
   const { data: documents, error } = await admin.from("documents")
-    .select("id,user_id,storage_path,normalized_storage_path").eq("user_id", userId);
+    .select("id,user_id,storage_path,normalized_storage_path,processing_status").eq("user_id", userId);
   if (error) return { ok: false as const, code: "ACCOUNT_DATA_LOOKUP_FAILED" };
+  if ((documents ?? []).some((document) => document.processing_status === "uploaded")) {
+    return { ok: false as const, code: "ACCOUNT_OPERATIONS_ACTIVE" };
+  }
   const paths: string[] = [];
   for (const document of documents ?? []) {
     const owned = ownedDocumentStoragePaths({ userId, documentId: document.id, storagePath: document.storage_path, normalizedStoragePath: document.normalized_storage_path });

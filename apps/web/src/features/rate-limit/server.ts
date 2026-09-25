@@ -12,7 +12,7 @@ const localBuckets = new Map<string, LocalBucket>();
 const MAX_LOCAL_BUCKETS = 10_000;
 const ephemeralHashSecret = randomBytes(32).toString("hex");
 
-export type RateLimitResult = { allowed: boolean; retryAfter: number; remaining: number; degraded: boolean };
+export type RateLimitResult = { allowed: boolean; retryAfter: number; remaining: number; degraded: boolean; unavailable?: boolean };
 
 function localLimit(key: string, rule: RateLimitRule, now = Date.now()): RateLimitResult {
   if (localBuckets.size >= MAX_LOCAL_BUCKETS) for (const [candidate, bucket] of localBuckets) { if (bucket.resetsAt <= now) localBuckets.delete(candidate); }
@@ -26,16 +26,26 @@ function localLimit(key: string, rule: RateLimitRule, now = Date.now()): RateLim
 export async function checkRateLimit(input: { rule: RateLimitRule; identityKind: "user" | "ip"; identity: string; actorUserId?: string | null }, client?: SupabaseClient<Database>): Promise<RateLimitResult> {
   const secret = process.env.RATE_LIMIT_HASH_SECRET;
   const keyHash = privacySafeIdentityHash(secret && secret.length >= 32 ? secret : ephemeralHashSecret, input.rule.scope, input.identityKind, input.identity);
-  if (!secret || secret.length < 32) return localLimit(keyHash, input.rule);
+  if (!secret || secret.length < 32) {
+    if (process.env.NODE_ENV === "production") return { allowed: false, retryAfter: input.rule.windowSeconds, remaining: 0, degraded: true, unavailable: true };
+    return localLimit(keyHash, input.rule);
+  }
   try {
     const admin = client ?? createAdminClient();
     const { data, error } = await admin.rpc("check_rate_limit", { p_scope: input.rule.scope, p_key_hash: keyHash, p_limit: input.rule.limit, p_window_seconds: input.rule.windowSeconds });
     if (error || !data?.[0]) throw new Error("RATE_LIMIT_STORE_FAILED");
     const row = data[0];
-    if (!row.allowed && row.first_denial) await recordAuditEvent({ actorUserId: input.actorUserId ?? null, action: "rate_limit.denied", resourceType: "request", status: "failed", metadata: { error_code: "RATE_LIMIT_EXCEEDED", category: input.rule.scope }, requestId: keyHash.slice(0, 32) }, admin);
+    if (!row.allowed && row.first_denial) {
+      try {
+        await recordAuditEvent({ actorUserId: input.actorUserId ?? null, action: "rate_limit.denied", resourceType: "request", status: "failed", metadata: { error_code: "RATE_LIMIT_EXCEEDED", category: input.rule.scope }, requestId: keyHash.slice(0, 32) }, admin);
+      } catch {
+        logServerEvent({ event: "rate_limit.audit_failed", errorCode: "AUDIT_WRITE_FAILED", environment: process.env.NODE_ENV }, console.warn);
+      }
+    }
     return { allowed: row.allowed, retryAfter: row.retry_after_seconds, remaining: row.remaining, degraded: false };
   } catch {
     logServerEvent({ event: "rate_limit.degraded", errorCode: "RATE_LIMIT_STORE_FAILED", environment: process.env.NODE_ENV }, console.warn);
+    if (process.env.NODE_ENV === "production") return { allowed: false, retryAfter: input.rule.windowSeconds, remaining: 0, degraded: true, unavailable: true };
     return localLimit(keyHash, input.rule);
   }
 }

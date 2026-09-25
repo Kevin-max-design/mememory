@@ -1,9 +1,10 @@
 # MedMemory
 
 Patient-owned medical records with local processing and source provenance.
-**Current status: authentication and secure private uploads are working against the
-development project. The stateless local document processor supports native PDF text
-and page-level Tesseract OCR fallback. Worker persistence is not connected.**
+**Current status: the authenticated web beta supports private upload, local document
+processing, human review, timeline, search, evidence-bound Ask, privacy export, and
+deletion. The database-backed worker persists page/block provenance and structured
+candidates. Qwen/VLM experiments are research-only and are not part of v0.1.**
 See docs/product-brief.txt for the complete target specification and docs/architecture.md
 for the discovery results and architecture.
 
@@ -18,7 +19,8 @@ Copy .env.example to apps/web/.env.local and fill in your development Supabase U
 anon key, and service-role key. Generate a random processor secret of at least 32
 characters. Never commit credentials. Put the same DOCUMENT_PROCESSOR_SECRET in
 services/document-processor/.env. Both services reject missing required configuration.
-Ollama is optional; leave its variables unset if unused.
+The v0.1 Ask path has a deterministic evidence fallback and does not require a cloud AI
+provider. Leave optional Ollama variables unset unless its adapter is being developed.
 
 PaddleOCR and OpenMed are optional local providers. Keep `ENABLE_PADDLEOCR=false`
 and `ENABLE_OPENMED=false` for the dependency-free fallback path. PaddleOCR is lazy
@@ -106,19 +108,18 @@ cd services/document-processor
 
 ## Supabase setup
 
-Use a development project only. The foundation schema, generated types, RLS verification,
-and private storage policies are deployed to the configured development project. The
-optional profile-bootstrap improvement remains pending and must not be applied without
-explicit approval while Supabase labels the default branch as production.
+Use a development/staging project for verification. Migrations through
+`202609140003_privacy_rate_limit.sql`, including profile bootstrap, are deployed to the
+configured staging project. `202609240001_account_deletion_guard.sql` is a new local
+release-hardening migration and must not be applied remotely without explicit approval.
 
 ## Authentication
 
-The web app includes email/password signup, login, confirmation callback, logout,
-session refresh, protected dashboard routing, and server-side identity verification.
-Supabase's hosted email confirmation flow requires its confirmation email template
-to target `/auth/confirm` and the deployed/local site URL to be allowlisted. Remote
-acceptance testing remains blocked while the dashboard labels the development
-project's default branch as `main PRODUCTION`.
+The web app includes full-name/email/password signup, login, logout, session refresh,
+protected routes, and server-side identity verification. For the v0.1 immediate-session
+flow, the hosted Email provider must be enabled and Confirm email must be disabled.
+Password recovery infrastructure remains compatible; `/auth/confirm` is retained for
+future confirmation/recovery callbacks.
 
 ## Tesseract and Ollama
 

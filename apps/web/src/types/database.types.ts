@@ -700,6 +700,7 @@ export type Database = {
           blood_group: string | null
           created_at: string
           date_of_birth: string | null
+          deletion_requested_at: string | null
           full_name: string
           id: string
           updated_at: string
@@ -708,6 +709,7 @@ export type Database = {
           blood_group?: string | null
           created_at?: string
           date_of_birth?: string | null
+          deletion_requested_at?: string | null
           full_name?: string
           id: string
           updated_at?: string
@@ -716,6 +718,7 @@ export type Database = {
           blood_group?: string | null
           created_at?: string
           date_of_birth?: string | null
+          deletion_requested_at?: string | null
           full_name?: string
           id?: string
           updated_at?: string

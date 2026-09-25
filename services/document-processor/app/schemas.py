@@ -11,7 +11,7 @@ class AnalysisOptions(BaseModel):
 
     render_dpi: int = Field(default=240, ge=150, le=300)
     native_text_min_characters: int = Field(default=24, ge=8, le=500)
-    max_pages: int = Field(default=100, ge=1, le=250)
+    max_pages: int = Field(default=50, ge=1, le=50)
 
 
 class AnalyzeRequest(BaseModel):

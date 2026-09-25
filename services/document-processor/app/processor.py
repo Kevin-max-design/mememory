@@ -35,6 +35,8 @@ SUPPORTED_MIME_TYPES = {
 }
 MAX_DECODED_BYTES = 20 * 1024 * 1024
 MAX_RENDERED_PIXELS = 40_000_000
+MAX_TOTAL_RENDERED_PIXELS = 200_000_000
+MAX_OCR_PAGES = 25
 
 
 def decode_payload(request: AnalyzeRequest) -> bytes:
@@ -133,6 +135,8 @@ class DocumentProcessor:
                 )
 
             pages: list[PageAnalysis] = []
+            total_rendered_pixels = 0
+            ocr_pages = 0
             for page_index in range(document.page_count):
                 page = document.load_page(page_index)
                 native_text = page.get_text("text")
@@ -147,10 +151,22 @@ class DocumentProcessor:
                     scale = request.options.render_dpi / 72
                     rendered_width = round(page.rect.width * scale)
                     rendered_height = round(page.rect.height * scale)
-                    if rendered_width * rendered_height > MAX_RENDERED_PIXELS:
+                    rendered_pixels = rendered_width * rendered_height
+                    if rendered_pixels > MAX_RENDERED_PIXELS:
                         raise ProcessorError(
                             "PROCESSING_IMAGE_TOO_LARGE",
                             "A rendered page exceeds the safe image limit.",
+                            413,
+                        )
+                    ocr_pages += 1
+                    total_rendered_pixels += rendered_pixels
+                    if (
+                        ocr_pages > MAX_OCR_PAGES
+                        or total_rendered_pixels > MAX_TOTAL_RENDERED_PIXELS
+                    ):
+                        raise ProcessorError(
+                            "PROCESSING_WORK_LIMIT_EXCEEDED",
+                            "The document requires too much OCR work.",
                             413,
                         )
                     pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)

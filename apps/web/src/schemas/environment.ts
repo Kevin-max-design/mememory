@@ -5,6 +5,18 @@ export const publicEnvironmentSchema = z.object({
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
 });
 
+const trustedProxyHeaderSchema = z.enum([
+  "cf-connecting-ip",
+  "x-real-ip",
+  "x-forwarded-for",
+]);
+
+const productionProcessorUrlSchema = z.url().refine((value) => {
+  const url = new URL(value);
+  const loopback = ["127.0.0.1", "localhost", "[::1]", "::1"].includes(url.hostname);
+  return url.protocol === "https:" || (url.protocol === "http:" && loopback);
+});
+
 export const environmentSchema = publicEnvironmentSchema.extend({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
   DOCUMENT_PROCESSOR_URL: z.url(),
@@ -15,9 +27,10 @@ export const environmentSchema = publicEnvironmentSchema.extend({
 
 export const productionEnvironmentSchema = publicEnvironmentSchema.extend({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20),
-  DOCUMENT_PROCESSOR_URL: z.url(),
+  DOCUMENT_PROCESSOR_URL: productionProcessorUrlSchema,
   DOCUMENT_PROCESSOR_SECRET: z.string().min(32),
   RATE_LIMIT_HASH_SECRET: z.string().min(32),
+  RATE_LIMIT_TRUSTED_PROXY_HEADER: trustedProxyHeaderSchema,
 });
 
 export function parseEnvironment(input: Record<string, string | undefined>) {

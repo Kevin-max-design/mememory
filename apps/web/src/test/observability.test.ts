@@ -53,6 +53,7 @@ describe("production observability and deployment hardening", () => {
     vi.stubEnv("DOCUMENT_PROCESSOR_URL", "http://127.0.0.1:8000");
     vi.stubEnv("DOCUMENT_PROCESSOR_SECRET", "p".repeat(32));
     vi.stubEnv("RATE_LIMIT_HASH_SECRET", "r".repeat(32));
+    vi.stubEnv("RATE_LIMIT_TRUSTED_PROXY_HEADER", "x-real-ip");
     readinessQuery.mockResolvedValueOnce({ error: null });
     const { GET } = await import("@/app/api/ready/route");
     const ready = await GET();

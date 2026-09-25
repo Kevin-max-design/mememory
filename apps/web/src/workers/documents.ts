@@ -173,7 +173,17 @@ export class SupabaseWorkerDependencies implements WorkerDependencies {
           signal: AbortSignal.timeout(15 * 60 * 1000),
         },
       );
-    } catch {
+    } catch (error) {
+      if (
+        error instanceof DOMException &&
+        (error.name === "TimeoutError" || error.name === "AbortError")
+      ) {
+        throw new WorkerFailure(
+          "PROCESSOR_TIMEOUT",
+          false,
+          "The document exceeded the processing time limit.",
+        );
+      }
       throw new WorkerFailure(
         "PROCESSOR_UNAVAILABLE",
         true,

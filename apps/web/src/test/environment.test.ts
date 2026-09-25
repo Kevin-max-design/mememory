@@ -25,8 +25,13 @@ describe("server configuration", () => {
     expect(() => parseEnvironment({})).toThrow("Invalid server configuration");
   });
   it("validates all production-only secrets without exposing their values", () => {
-    const production = { ...configuration, SUPABASE_SERVICE_ROLE_KEY: "x".repeat(32), RATE_LIMIT_HASH_SECRET: "r".repeat(32) };
+    const production = { ...configuration, SUPABASE_SERVICE_ROLE_KEY: "x".repeat(32), RATE_LIMIT_HASH_SECRET: "r".repeat(32), RATE_LIMIT_TRUSTED_PROXY_HEADER: "x-real-ip" };
     expect(parseProductionEnvironment(production).RATE_LIMIT_HASH_SECRET).toHaveLength(32);
     expect(() => parseProductionEnvironment({ ...production, RATE_LIMIT_HASH_SECRET: "private-short" })).toThrow("PRODUCTION_CONFIGURATION_INVALID");
+  });
+  it("requires encrypted transport for a non-loopback production processor", () => {
+    const production = { ...configuration, SUPABASE_SERVICE_ROLE_KEY: "x".repeat(32), RATE_LIMIT_HASH_SECRET: "r".repeat(32), RATE_LIMIT_TRUSTED_PROXY_HEADER: "x-real-ip" };
+    expect(() => parseProductionEnvironment({ ...production, DOCUMENT_PROCESSOR_URL: "http://processor.internal:8000" })).toThrow("PRODUCTION_CONFIGURATION_INVALID");
+    expect(parseProductionEnvironment({ ...production, DOCUMENT_PROCESSOR_URL: "https://processor.internal" }).DOCUMENT_PROCESSOR_URL).toBe("https://processor.internal");
   });
 });

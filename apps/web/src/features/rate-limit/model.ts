@@ -1,4 +1,5 @@
 import { createHash, createHmac } from "node:crypto";
+import { isIP } from "node:net";
 
 export const rateLimitScopes = ["login", "signup", "verification", "upload", "search", "ask", "ask_duplicate", "preview", "export"] as const;
 export type RateLimitScope = (typeof rateLimitScopes)[number];
@@ -35,8 +36,12 @@ export function privacySafeIdentityHash(secret: string, scope: RateLimitScope, i
   return createHmac("sha256", secret).update(`${scope}:${identityKind}:${identity}`).digest("hex");
 }
 
-export function clientAddress(headers: Headers) {
-  const direct = headers.get("cf-connecting-ip") ?? headers.get("x-real-ip");
-  if (direct) return direct.trim().slice(0, 64);
-  return (headers.get("x-forwarded-for")?.split(",")[0].trim() || "unknown").slice(0, 64);
+export const trustedProxyHeaders = ["cf-connecting-ip", "x-real-ip", "x-forwarded-for"] as const;
+export type TrustedProxyHeader = (typeof trustedProxyHeaders)[number];
+
+export function clientAddress(headers: Headers, trustedHeader = process.env.RATE_LIMIT_TRUSTED_PROXY_HEADER) {
+  if (!trustedProxyHeaders.includes(trustedHeader as TrustedProxyHeader)) return "unattributed";
+  const raw = headers.get(trustedHeader!);
+  const candidate = (trustedHeader === "x-forwarded-for" ? raw?.split(",")[0] : raw)?.trim() ?? "";
+  return isIP(candidate) ? candidate : "unattributed";
 }

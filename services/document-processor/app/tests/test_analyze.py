@@ -1,11 +1,13 @@
 import base64
 from uuid import uuid4
 
+import fitz
 import pytest
 
-from app.errors import ocr_unavailable_error
+from app.errors import ProcessorError, ocr_unavailable_error
+from app.ocr import OCRResult
 from app.processor import DocumentProcessor
-from app.schemas import AnalyzeResponse
+from app.schemas import AnalyzeRequest, AnalyzeResponse, ProviderMetadata
 from app.tests.conftest import analyze_payload
 
 
@@ -148,3 +150,38 @@ def test_image_mime_mismatch_is_rejected(client, headers, synthetic_image):
     )
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "UPLOAD_INVALID_FILE"
+
+
+class CountingOCR:
+    def __init__(self):
+        self.calls = 0
+
+    def extract(self, image, page_number, preprocessing):
+        self.calls += 1
+        return OCRResult(
+            full_text="",
+            blocks=[],
+            provider=ProviderMetadata(name="synthetic", version="1", preprocessing=[]),
+        )
+
+
+def test_document_wide_ocr_work_is_bounded():
+    document = fitz.open()
+    for _ in range(26):
+        document.new_page()
+    content = document.tobytes()
+    document.close()
+    provider = CountingOCR()
+    request = AnalyzeRequest.model_validate(
+        {
+            **analyze_payload(str(uuid4()), "application/pdf", content),
+            "options": {"max_pages": 50},
+        }
+    )
+
+    with pytest.raises(ProcessorError) as raised:
+        DocumentProcessor(provider).analyze(request)
+
+    assert raised.value.code == "PROCESSING_WORK_LIMIT_EXCEEDED"
+    assert raised.value.status_code == 413
+    assert provider.calls <= 25

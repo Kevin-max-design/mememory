@@ -50,14 +50,36 @@ describe("privacy controls", () => {
   });
 
   it("deletes only the authenticated account ID after owner storage cleanup", async () => {
-    const eq = vi.fn().mockResolvedValue({ data: [{ id: documentId, user_id: userId, storage_path: storagePath, normalized_storage_path: null }], error: null });
+    const eq = vi.fn().mockResolvedValue({ data: [{ id: documentId, user_id: userId, storage_path: storagePath, normalized_storage_path: null, processing_status: "queued" }], error: null });
+    const markerEq = vi.fn().mockResolvedValue({ error: null });
     const remove = vi.fn().mockResolvedValue({ error: null });
     const deleteUser = vi.fn().mockResolvedValue({ error: null });
-    const client = { from: vi.fn(() => ({ select: () => ({ eq }) })), storage: { from: () => ({ remove }) }, auth: { admin: { deleteUser } } };
+    const client = { from: vi.fn((table: string) => table === "profiles" ? { update: () => ({ eq: markerEq }) } : { select: () => ({ eq }) }), storage: { from: () => ({ remove }) }, auth: { admin: { deleteUser } } };
     await expect(deleteOwnedAccountData(client as never, userId)).resolves.toEqual({ ok: true, documentCount: 1 });
+    expect(markerEq).toHaveBeenCalledWith("id", userId);
     expect(eq).toHaveBeenCalledWith("user_id", userId);
     expect(deleteUser).toHaveBeenCalledWith(userId);
     expect(deleteUser).not.toHaveBeenCalledWith(otherUserId);
+  });
+
+  it("marks deletion first and stops while a reserved upload is active", async () => {
+    const markerEq = vi.fn().mockResolvedValue({ error: null });
+    const eq = vi.fn().mockResolvedValue({ data: [{ id: documentId, user_id: userId, storage_path: storagePath, normalized_storage_path: null, processing_status: "uploaded" }], error: null });
+    const remove = vi.fn();
+    const deleteUser = vi.fn();
+    const client = { from: vi.fn((table: string) => table === "profiles" ? { update: () => ({ eq: markerEq }) } : { select: () => ({ eq }) }), storage: { from: () => ({ remove }) }, auth: { admin: { deleteUser } } };
+    await expect(deleteOwnedAccountData(client as never, userId)).resolves.toEqual({ ok: false, code: "ACCOUNT_OPERATIONS_ACTIVE" });
+    expect(remove).not.toHaveBeenCalled();
+    expect(deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("keeps the deletion marker server-controlled and serializes document inserts", () => {
+    const sql = readFileSync(resolve(process.cwd(), "../../supabase/migrations/202609240001_account_deletion_guard.sql"), "utf8");
+    expect(sql).toContain("revoke update on public.profiles from authenticated");
+    expect(sql).toContain("grant update(full_name, date_of_birth, blood_group)");
+    expect(sql).toContain("for share");
+    expect(sql).toContain("ACCOUNT_DELETION_PENDING");
+    expect(sql).toContain("before insert on public.documents");
   });
 
   it("gives export a distinct persistent rate-limit scope", () => {

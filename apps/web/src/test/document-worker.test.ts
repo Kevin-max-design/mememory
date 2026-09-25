@@ -9,7 +9,7 @@ import {
   type ClaimedDocumentJob,
   type WorkerDependencies,
 } from "@/workers/document-worker";
-import { readBoundedJsonResponse } from "@/workers/documents";
+import { readBoundedJsonResponse, SupabaseWorkerDependencies } from "@/workers/documents";
 
 const content = new TextEncoder().encode("synthetic document bytes");
 const job: ClaimedDocumentJob = {
@@ -189,6 +189,22 @@ describe("document worker orchestration", () => {
     });
     expect(deps.fail).toHaveBeenCalledWith(job, failure);
     expect(deps.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "processing.failed", status: "failed", metadata: expect.objectContaining({ error_code: "PROCESSOR_UNAVAILABLE" }) }));
+  });
+
+  it("does not retry a processor wall-clock timeout", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("timed out", "TimeoutError")));
+    const dependencies = new SupabaseWorkerDependencies({} as never, {
+      NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable",
+      SUPABASE_SERVICE_ROLE_KEY: "x".repeat(32),
+      DOCUMENT_PROCESSOR_URL: "https://processor.internal",
+      DOCUMENT_PROCESSOR_SECRET: "s".repeat(32),
+    } as never);
+    try {
+      await expect(dependencies.analyze(job, content)).rejects.toMatchObject({ code: "PROCESSOR_TIMEOUT", retryable: false });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("fails non-retryable integrity mismatches before processing", async () => {

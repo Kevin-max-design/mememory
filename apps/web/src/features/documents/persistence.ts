@@ -48,15 +48,6 @@ export async function persistValidatedUpload(
   const storagePath = `${input.userId}/${documentId}/original/${generatedFilename}`;
   const sha256 = createHash("sha256").update(input.bytes).digest("hex");
 
-  const { error: storageError } = await admin.storage
-    .from("medical-records")
-    .upload(storagePath, input.bytes, {
-      cacheControl: "private, max-age=0",
-      contentType: input.file.mimeType,
-      upsert: false,
-    });
-  if (storageError) return { ok: false, code: "upload_failed" };
-
   let documentCreated = false;
   const cleanup = async () => {
     const outcomes: MutationResult[] = [];
@@ -85,10 +76,26 @@ export async function persistValidatedUpload(
   if (documentError) {
     return {
       ok: false,
-      code: (await cleanup()) ? "persistence_failed" : "cleanup_failed",
+      code: "persistence_failed",
     };
   }
   documentCreated = true;
+
+  // Reserve the document row before writing bytes. The database trigger holds
+  // the account lifecycle boundary, so account deletion can block new objects.
+  const { error: storageError } = await admin.storage
+    .from("medical-records")
+    .upload(storagePath, input.bytes, {
+      cacheControl: "private, max-age=0",
+      contentType: input.file.mimeType,
+      upsert: false,
+    });
+  if (storageError) {
+    return {
+      ok: false,
+      code: (await cleanup()) ? "upload_failed" : "cleanup_failed",
+    };
+  }
 
   const { error: jobError } = await admin.from("processing_jobs").insert({
     user_id: input.userId,

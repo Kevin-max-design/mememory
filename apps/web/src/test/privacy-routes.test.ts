@@ -82,6 +82,14 @@ describe("privacy routes", () => {
     expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ action: "account.deletion_failed", metadata: expect.objectContaining({ error_code: "STORAGE_DELETE_FAILED" }) }), expect.anything());
   });
 
+  it("returns a retryable conflict while an upload reservation is active", async () => {
+    mocks.deleteAccount.mockResolvedValueOnce({ ok: false, code: "ACCOUNT_OPERATIONS_ACTIVE" });
+    const { DELETE } = await import("@/app/api/privacy/account/route");
+    const response = await DELETE(new Request("http://localhost", { method: "DELETE", body: JSON.stringify({ confirmation: "DELETE MY ACCOUNT" }) }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ code: "account_operations_active" });
+  });
+
   it("exports explicit owner-scoped fields without worker or storage internals", () => {
     const source = readFileSync(resolve(process.cwd(), "src/features/privacy/export.ts"), "utf8");
     expect(source).toContain('.eq("user_id", user.id)');

@@ -1,4 +1,5 @@
 import base64
+import os
 from collections.abc import Iterator
 
 import cv2
@@ -6,6 +7,13 @@ import fitz
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
+
+# Keep the default-provider tests independent from a developer's local .env.
+# PaddleOCR has dedicated adapter tests; end-to-end processor tests exercise the
+# documented default Tesseract path unless they explicitly inject another provider.
+os.environ["ENABLE_PADDLEOCR"] = "false"
+os.environ["OCR_PRIMARY_PROVIDER"] = "tesseract"
+os.environ["OCR_FALLBACK_PROVIDER"] = "tesseract"
 
 from app.main import app
 
