@@ -7,4 +7,5 @@ export const credentialsSchema = z.object({
 
 export const signupSchema = credentialsSchema.extend({
   fullName: z.string().trim().min(1).max(200),
+  acceptedTerms: z.literal("on"),
 });

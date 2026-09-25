@@ -25,8 +25,20 @@ describe("authentication input", () => {
         email: "patient@example.test",
         password: "correct horse battery",
         fullName: "",
+        acceptedTerms: "on",
       }).success,
     ).toBe(false);
+  });
+  it("requires explicit terms and privacy acknowledgment", () => {
+    const signup = {
+      email: "patient@example.test",
+      password: "correct horse battery",
+      fullName: "Test Patient",
+    };
+    expect(signupSchema.safeParse(signup).success).toBe(false);
+    expect(
+      signupSchema.safeParse({ ...signup, acceptedTerms: "on" }).success,
+    ).toBe(true);
   });
   it("does not expose upstream authentication errors", () => {
     expect(authErrorMessage("unexpected-provider-detail")).toBeUndefined();

@@ -63,8 +63,10 @@ upload/account-deletion serialization. Final closure still requires the gates be
   header that can reach Node unchanged from the public client.
 - Run the worker and processor under explicit CPU, memory, concurrency, filesystem, and
   network-egress limits.
-- Add a tested Content Security Policy after final web and signed-preview origins are
-  known.
-- Produce a hashed Python dependency lock artifact for the immutable release image.
+- Verify the baseline Content Security Policy against the final web and signed-preview
+  origins. The current policy deliberately retains Next.js-compatible inline scripts
+  and styles; nonce hardening remains future work.
+- Build the processor from its hash-bearing `uv.lock` and run a clean Linux synthetic
+  OCR smoke on the selected production architecture.
 - Run one isolated synthetic staging RC flow and clean it up completely.
 - Sharing and emergency publication remain outside v0.1 and must not be exposed.

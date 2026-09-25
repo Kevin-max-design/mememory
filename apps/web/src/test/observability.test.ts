@@ -49,6 +49,8 @@ describe("production observability and deployment hardening", () => {
   it("reports readiness without exposing dependency details", async () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "publishable");
+    vi.stubEnv("NEXT_PUBLIC_SUPPORT_EMAIL", "support@example.test");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://medmemory.example");
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "s".repeat(32));
     vi.stubEnv("DOCUMENT_PROCESSOR_URL", "http://127.0.0.1:8000");
     vi.stubEnv("DOCUMENT_PROCESSOR_SECRET", "p".repeat(32));

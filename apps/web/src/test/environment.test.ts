@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseEnvironment, parseProductionEnvironment } from "../schemas/environment";
+import {
+  parseEnvironment,
+  parseProductionEnvironment,
+} from "../schemas/environment";
 
 const configuration = {
   NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
@@ -25,13 +28,62 @@ describe("server configuration", () => {
     expect(() => parseEnvironment({})).toThrow("Invalid server configuration");
   });
   it("validates all production-only secrets without exposing their values", () => {
-    const production = { ...configuration, SUPABASE_SERVICE_ROLE_KEY: "x".repeat(32), RATE_LIMIT_HASH_SECRET: "r".repeat(32), RATE_LIMIT_TRUSTED_PROXY_HEADER: "x-real-ip" };
-    expect(parseProductionEnvironment(production).RATE_LIMIT_HASH_SECRET).toHaveLength(32);
-    expect(() => parseProductionEnvironment({ ...production, RATE_LIMIT_HASH_SECRET: "private-short" })).toThrow("PRODUCTION_CONFIGURATION_INVALID");
+    const production = {
+      ...configuration,
+      NEXT_PUBLIC_SUPPORT_EMAIL: "support@example.test",
+      NEXT_PUBLIC_SITE_URL: "https://medmemory.example",
+      SUPABASE_SERVICE_ROLE_KEY: "x".repeat(32),
+      RATE_LIMIT_HASH_SECRET: "r".repeat(32),
+      RATE_LIMIT_TRUSTED_PROXY_HEADER: "x-real-ip",
+    };
+    expect(
+      parseProductionEnvironment(production).RATE_LIMIT_HASH_SECRET,
+    ).toHaveLength(32);
+    expect(() =>
+      parseProductionEnvironment({
+        ...production,
+        RATE_LIMIT_HASH_SECRET: "private-short",
+      }),
+    ).toThrow("PRODUCTION_CONFIGURATION_INVALID");
   });
   it("requires encrypted transport for a non-loopback production processor", () => {
-    const production = { ...configuration, SUPABASE_SERVICE_ROLE_KEY: "x".repeat(32), RATE_LIMIT_HASH_SECRET: "r".repeat(32), RATE_LIMIT_TRUSTED_PROXY_HEADER: "x-real-ip" };
-    expect(() => parseProductionEnvironment({ ...production, DOCUMENT_PROCESSOR_URL: "http://processor.internal:8000" })).toThrow("PRODUCTION_CONFIGURATION_INVALID");
-    expect(parseProductionEnvironment({ ...production, DOCUMENT_PROCESSOR_URL: "https://processor.internal" }).DOCUMENT_PROCESSOR_URL).toBe("https://processor.internal");
+    const production = {
+      ...configuration,
+      NEXT_PUBLIC_SUPPORT_EMAIL: "support@example.test",
+      NEXT_PUBLIC_SITE_URL: "https://medmemory.example",
+      SUPABASE_SERVICE_ROLE_KEY: "x".repeat(32),
+      RATE_LIMIT_HASH_SECRET: "r".repeat(32),
+      RATE_LIMIT_TRUSTED_PROXY_HEADER: "x-real-ip",
+    };
+    expect(() =>
+      parseProductionEnvironment({
+        ...production,
+        DOCUMENT_PROCESSOR_URL: "http://processor.internal:8000",
+      }),
+    ).toThrow("PRODUCTION_CONFIGURATION_INVALID");
+    expect(
+      parseProductionEnvironment({
+        ...production,
+        DOCUMENT_PROCESSOR_URL: "https://processor.internal",
+      }).DOCUMENT_PROCESSOR_URL,
+    ).toBe("https://processor.internal");
+  });
+  it("requires a public support contact and HTTPS site URL in production", () => {
+    const production = {
+      ...configuration,
+      SUPABASE_SERVICE_ROLE_KEY: "x".repeat(32),
+      RATE_LIMIT_HASH_SECRET: "r".repeat(32),
+      RATE_LIMIT_TRUSTED_PROXY_HEADER: "x-real-ip",
+    };
+    expect(() => parseProductionEnvironment(production)).toThrow(
+      "PRODUCTION_CONFIGURATION_INVALID",
+    );
+    expect(() =>
+      parseProductionEnvironment({
+        ...production,
+        NEXT_PUBLIC_SUPPORT_EMAIL: "support@example.test",
+        NEXT_PUBLIC_SITE_URL: "http://medmemory.example",
+      }),
+    ).toThrow("PRODUCTION_CONFIGURATION_INVALID");
   });
 });

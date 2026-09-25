@@ -16,7 +16,7 @@ dependencies = [
 dev = ["pytest>=8,<10", "httpx>=0.28,<1", "ruff>=0.11,<1"]
 openmed = ["openmed==2.3.0"]
 clinical-brain = ["openmed[gliner]==2.3.0"]
-paddleocr = ["paddleocr>=2.7,<4"]
+paddleocr = ["paddleocr>=2.7,<4", "paddlepaddle==3.3.1"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["app/tests"]

@@ -3,6 +3,8 @@ import { z } from "zod";
 export const publicEnvironmentSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.url(),
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
+  NEXT_PUBLIC_SUPPORT_EMAIL: z.email().optional(),
+  NEXT_PUBLIC_SITE_URL: z.url().optional(),
 });
 
 const trustedProxyHeaderSchema = z.enum([
@@ -13,7 +15,9 @@ const trustedProxyHeaderSchema = z.enum([
 
 const productionProcessorUrlSchema = z.url().refine((value) => {
   const url = new URL(value);
-  const loopback = ["127.0.0.1", "localhost", "[::1]", "::1"].includes(url.hostname);
+  const loopback = ["127.0.0.1", "localhost", "[::1]", "::1"].includes(
+    url.hostname,
+  );
   return url.protocol === "https:" || (url.protocol === "http:" && loopback);
 });
 
@@ -26,6 +30,10 @@ export const environmentSchema = publicEnvironmentSchema.extend({
 });
 
 export const productionEnvironmentSchema = publicEnvironmentSchema.extend({
+  NEXT_PUBLIC_SUPPORT_EMAIL: z.email(),
+  NEXT_PUBLIC_SITE_URL: z
+    .url()
+    .refine((value) => new URL(value).protocol === "https:"),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20),
   DOCUMENT_PROCESSOR_URL: productionProcessorUrlSchema,
   DOCUMENT_PROCESSOR_SECRET: z.string().min(32),
@@ -56,7 +64,9 @@ export function parsePublicEnvironment(
   return parsed.data;
 }
 
-export function parseProductionEnvironment(input: Record<string, string | undefined>) {
+export function parseProductionEnvironment(
+  input: Record<string, string | undefined>,
+) {
   const parsed = productionEnvironmentSchema.safeParse(input);
   if (!parsed.success) throw new Error("PRODUCTION_CONFIGURATION_INVALID");
   return parsed.data;

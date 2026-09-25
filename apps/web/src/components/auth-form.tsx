@@ -81,6 +81,34 @@ export function AuthForm({ action, error, mode, message }: AuthFormProps) {
             autoComplete={isSignup ? "new-password" : "current-password"}
           />
         </label>
+        {isSignup ? (
+          <label className="flex items-start gap-3 text-sm leading-6 text-slate-600">
+            <input
+              className="mt-1 h-4 w-4 rounded border-slate-300 accent-teal-800"
+              name="acceptedTerms"
+              required
+              type="checkbox"
+            />
+            <span>
+              I agree to the{" "}
+              <Link
+                className="font-semibold text-teal-800 underline"
+                href="/terms"
+              >
+                Terms
+              </Link>{" "}
+              and acknowledge the{" "}
+              <Link
+                className="font-semibold text-teal-800 underline"
+                href="/privacy"
+              >
+                Privacy Policy
+              </Link>
+              . I understand that MedMemory is AI-assisted and does not provide
+              medical advice.
+            </span>
+          </label>
+        ) : null}
         <button
           className="w-full rounded-lg bg-teal-800 px-4 py-3 font-semibold text-white hover:bg-teal-900"
           type="submit"
@@ -96,6 +124,10 @@ export function AuthForm({ action, error, mode, message }: AuthFormProps) {
         >
           {isSignup ? "Sign in" : "Create one"}
         </Link>
+      </p>
+      <p className="mt-8 text-xs leading-5 text-slate-500">
+        MedMemory is not an emergency service. Verify important information
+        against the original record.
       </p>
     </main>
   );
