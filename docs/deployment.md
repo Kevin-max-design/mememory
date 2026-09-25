@@ -22,9 +22,8 @@ Optional Ask provider settings are `OLLAMA_BASE_URL` and `OLLAMA_MODEL`. The app
 Check the target Supabase project reference and migration status before every database change. Apply an explicitly approved migration once, in filename order. The current files are foundation, authentication profile bootstrap, document worker, structured extraction, review workflow, processing resource limits, audit append-only hardening, and rate limiting.
 
 Staging has applied the repository migrations through
-`202609140003_privacy_rate_limit.sql`, including
-`202609100001_auth_profile_bootstrap.sql`. The local
-`202609240001_account_deletion_guard.sql` migration is pending explicit remote approval.
+`202609240001_account_deletion_guard.sql`, including
+`202609100001_auth_profile_bootstrap.sql`.
 Apply migrations one at a time with the targeted migration command and confirm the
 recorded version after each operation. Take and restore-test a database backup before
 production schema changes.
@@ -69,6 +68,6 @@ Rotate the Supabase service-role key, processor shared secret, and rate-limit HM
   egress isolation remain deployment responsibilities.
 - Python dependencies currently use bounded ranges without hashes; create and verify an
   immutable lock artifact before the production image is built.
-- `202609240001_account_deletion_guard.sql` must be applied and verified before account
-  deletion is enabled in the release candidate.
+- The account-deletion guard is applied and verified on staging. Repeat the same
+  targeted migration and concurrency verification before enabling production deletion.
 - Deployment, database, and processor rollback remain operator-run procedures.

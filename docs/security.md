@@ -28,7 +28,7 @@ application has completed production deployment verification.
   output-block, output-text, response-size, and wall-clock controls.
 
 These database protections are deployed to MedMemory staging through
-`202609140003_privacy_rate_limit.sql`. Runtime tests have verified RLS, owner isolation,
+`202609240001_account_deletion_guard.sql`. Runtime tests have verified RLS, owner isolation,
 anonymous denial, private Storage, worker persistence, review, rate limits, privacy
 export, and append-only audit behavior using synthetic data.
 
@@ -56,9 +56,9 @@ upload/account-deletion serialization. Final closure still requires the gates be
 
 ## Release prerequisites
 
-- Apply and remotely verify `202609240001_account_deletion_guard.sql` before enabling
-  account deletion in RC. It keeps the deletion marker server-controlled and serializes
-  new document rows with erasure.
+- The staging account-deletion guard is applied and remotely verified. It keeps the
+  deletion marker server-controlled and serializes new document rows with erasure;
+  production still requires its own targeted migration approval and verification.
 - Verify the deployment edge overwrites `RATE_LIMIT_TRUSTED_PROXY_HEADER`; never trust a
   header that can reach Node unchanged from the public client.
 - Run the worker and processor under explicit CPU, memory, concurrency, filesystem, and
