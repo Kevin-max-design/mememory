@@ -4,6 +4,10 @@ const mocks = vi.hoisted(() => ({
   audit: vi.fn().mockResolvedValue(true),
   login: vi.fn(),
   signup: vi.fn(),
+  requestReset: vi.fn(),
+  getUser: vi.fn(),
+  updateUser: vi.fn(),
+  signOut: vi.fn(),
   redirect: vi.fn((path: string) => {
     throw new Error(`REDIRECT:${path}`);
   }),
@@ -11,9 +15,23 @@ const mocks = vi.hoisted(() => ({
 vi.mock("server-only", () => ({}));
 vi.mock("@/features/audit/server", () => ({ recordAuditEvent: mocks.audit }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+vi.mock("@/lib/supabase/public-environment", () => ({
+  getSupabasePublicEnvironment: () => ({
+    NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "publishable",
+    NEXT_PUBLIC_SITE_URL: "https://medmemory.test",
+  }),
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
-    auth: { signInWithPassword: mocks.login, signUp: mocks.signup },
+    auth: {
+      signInWithPassword: mocks.login,
+      signUp: mocks.signup,
+      resetPasswordForEmail: mocks.requestReset,
+      getUser: mocks.getUser,
+      updateUser: mocks.updateUser,
+      signOut: mocks.signOut,
+    },
   }),
 }));
 
@@ -121,5 +139,45 @@ describe("server-observable auth auditing", () => {
     expect(JSON.stringify(mocks.audit.mock.calls)).not.toContain(
       "user already registered",
     );
+  });
+
+  it("requests recovery without exposing account existence", async () => {
+    const { requestPasswordReset } = await import("@/features/auth/actions");
+    mocks.requestReset.mockResolvedValue({
+      data: {},
+      error: new Error("account is not registered"),
+    });
+    const form = new FormData();
+    form.set("email", "person@example.test");
+    await expect(requestPasswordReset(form)).rejects.toThrow(
+      "REDIRECT:/forgot-password?message=sent",
+    );
+    expect(mocks.requestReset).toHaveBeenCalledWith(
+      "person@example.test",
+      {
+        redirectTo:
+          "https://medmemory.test/auth/confirm?next=/reset-password",
+      },
+    );
+  });
+
+  it("updates a recovery-session password and signs out locally", async () => {
+    const { resetPassword } = await import("@/features/auth/actions");
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: "00000000-0000-4000-8000-000000000001" } },
+      error: null,
+    });
+    mocks.updateUser.mockResolvedValue({ data: {}, error: null });
+    mocks.signOut.mockResolvedValue({ error: null });
+    const form = new FormData();
+    form.set("password", "new correct horse battery");
+    form.set("confirmPassword", "new correct horse battery");
+    await expect(resetPassword(form)).rejects.toThrow(
+      "REDIRECT:/login?message=password_updated",
+    );
+    expect(mocks.updateUser).toHaveBeenCalledWith({
+      password: "new correct horse battery",
+    });
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: "local" });
   });
 });

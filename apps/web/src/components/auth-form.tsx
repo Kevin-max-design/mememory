@@ -12,7 +12,11 @@ export function AuthForm({ action, error, mode, message }: AuthFormProps) {
   const isSignup = mode === "signup";
   const notice = authErrorMessage(error);
   const status =
-    message === "signed_out" ? "You have been signed out." : undefined;
+    message === "signed_out"
+      ? "You have been signed out."
+      : message === "password_updated"
+        ? "Your password was updated. Sign in with the new password."
+        : undefined;
 
   return (
     <main className="mx-auto min-h-screen max-w-md px-6 py-20">
@@ -69,6 +73,16 @@ export function AuthForm({ action, error, mode, message }: AuthFormProps) {
             autoComplete="email"
           />
         </label>
+        {!isSignup ? (
+          <div className="-mt-3 text-right">
+            <Link
+              className="text-sm font-semibold text-teal-800 underline"
+              href="/forgot-password"
+            >
+              Forgot password?
+            </Link>
+          </div>
+        ) : null}
         <label className="block text-sm font-medium">
           Password
           <input

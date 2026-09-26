@@ -12,10 +12,23 @@ const allowedTypes = new Set<EmailOtpType>([
 
 export async function GET(request: NextRequest) {
   const requestId = requestCorrelationId(request);
+  const code = request.nextUrl.searchParams.get("code");
   const tokenHash = request.nextUrl.searchParams.get("token_hash");
   const type = request.nextUrl.searchParams.get("type") as EmailOtpType | null;
+  const next = request.nextUrl.searchParams.get("next");
+  const nextPath = next === "/reset-password" ? next : "/dashboard";
   const destination = request.nextUrl.clone();
   destination.search = "";
+
+  if (code) {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) {
+      await recordAuditEvent({ actorUserId: data.user?.id ?? null, action: "auth.email_verified", resourceType: "user", resourceId: data.user?.id, status: "succeeded", metadata: { source_route: "/auth/confirm" }, requestId });
+      destination.pathname = nextPath;
+      return NextResponse.redirect(destination);
+    }
+  }
 
   if (tokenHash && type && allowedTypes.has(type)) {
     const supabase = await createClient();
@@ -25,7 +38,8 @@ export async function GET(request: NextRequest) {
     });
     if (!error) {
       await recordAuditEvent({ actorUserId: data.user?.id ?? null, action: "auth.email_verified", resourceType: "user", resourceId: data.user?.id, status: "succeeded", metadata: { source_route: "/auth/confirm" }, requestId });
-      destination.pathname = "/dashboard";
+      destination.pathname =
+        type === "recovery" ? nextPath : "/dashboard";
       return NextResponse.redirect(destination);
     }
   }

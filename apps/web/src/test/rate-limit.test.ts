@@ -16,6 +16,9 @@ describe("rate limiting and abuse controls", () => {
   it("maps each expensive server route to a separate scope", () => {
     expect(ruleForRequest("/login", "POST", false)?.scope).toBe("login");
     expect(ruleForRequest("/signup", "POST", false)?.scope).toBe("signup");
+    expect(ruleForRequest("/forgot-password", "POST", false)?.scope).toBe(
+      "verification",
+    );
     expect(ruleForRequest("/api/documents", "POST", false)?.scope).toBe("upload");
     expect(ruleForRequest("/search", "GET", true)?.scope).toBe("search");
     expect(ruleForRequest("/ask", "GET", true)?.scope).toBe("ask");

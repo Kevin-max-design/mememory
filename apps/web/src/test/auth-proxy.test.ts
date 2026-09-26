@@ -108,6 +108,8 @@ describe("authentication proxy", () => {
     const { config } = await import("@/proxy");
     expect(config.matcher).toContain("/timeline");
     expect(config.matcher).toContain("/api/privacy/:path*");
+    expect(config.matcher).toContain("/forgot-password");
+    expect(config.matcher).toContain("/reset-password");
   });
 
   it("enforces the export limiter through the application proxy", async () => {

@@ -10,6 +10,8 @@ export const config = {
     "/dashboard/:path*",
     "/login",
     "/signup",
+    "/forgot-password",
+    "/reset-password",
     "/auth/confirm",
     "/api/documents",
     "/api/privacy/:path*",

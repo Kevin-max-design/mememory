@@ -23,6 +23,7 @@ export function requestValueFingerprint(value: string) { return createHash("sha2
 export function ruleForRequest(pathname: string, method: string, hasQuery: boolean): RateLimitRule | null {
   if (pathname === "/login" && method === "POST") return rules.login;
   if (pathname === "/signup" && method === "POST") return rules.signup;
+  if (pathname === "/forgot-password" && method === "POST") return rules.verification;
   if (pathname === "/auth/confirm" && method === "GET") return rules.verification;
   if (pathname === "/api/documents" && method === "POST") return rules.upload;
   if (pathname === "/search" && method === "GET" && hasQuery) return rules.search;

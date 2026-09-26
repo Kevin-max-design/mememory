@@ -65,7 +65,9 @@ export async function refreshSession(request: NextRequest) {
     }
   }
   const isProtected = request.nextUrl.pathname.startsWith("/dashboard");
-  const isAuthPage = ["/login", "/signup"].includes(request.nextUrl.pathname);
+  const isAuthPage = ["/login", "/signup", "/forgot-password"].includes(
+    request.nextUrl.pathname,
+  );
 
   if (!authenticated && isProtected) {
     const url = request.nextUrl.clone();

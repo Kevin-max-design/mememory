@@ -4,7 +4,13 @@ import { redirect } from "next/navigation";
 import { recordAuditEvent } from "@/features/audit/server";
 import { logServerEvent } from "@/features/observability/logger";
 import { createClient } from "@/lib/supabase/server";
-import { credentialsSchema, signupSchema } from "./schemas";
+import { getSupabasePublicEnvironment } from "@/lib/supabase/public-environment";
+import {
+  credentialsSchema,
+  passwordResetSchema,
+  recoveryRequestSchema,
+  signupSchema,
+} from "./schemas";
 
 export async function login(formData: FormData) {
   const parsed = credentialsSchema.safeParse(Object.fromEntries(formData));
@@ -128,4 +134,42 @@ export async function logout() {
     metadata: { source_route: "/logout" },
   });
   redirect("/login?message=signed_out");
+}
+
+export async function requestPasswordReset(formData: FormData) {
+  const parsed = recoveryRequestSchema.safeParse({
+    email: formData.get("email"),
+  });
+  if (!parsed.success) redirect("/forgot-password?error=invalid_input");
+
+  const environment = getSupabasePublicEnvironment();
+  const siteUrl =
+    environment.NEXT_PUBLIC_SITE_URL ?? "http://127.0.0.1:3000";
+  const supabase = await createClient();
+  await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+    redirectTo: `${siteUrl}/auth/confirm?next=/reset-password`,
+  });
+
+  // Always return the same result so this endpoint cannot enumerate accounts.
+  redirect("/forgot-password?message=sent");
+}
+
+export async function resetPassword(formData: FormData) {
+  const parsed = passwordResetSchema.safeParse({
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) redirect("/reset-password?error=invalid_input");
+
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) redirect("/login?error=confirmation_failed");
+
+  const { error } = await supabase.auth.updateUser({
+    password: parsed.data.password,
+  });
+  if (error) redirect("/reset-password?error=password_reset_failed");
+
+  await supabase.auth.signOut({ scope: "local" });
+  redirect("/login?message=password_updated");
 }
