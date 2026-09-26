@@ -2,10 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  MAX_UPLOAD_BYTES,
-  uploadErrorMessages,
-} from "@/features/documents/validation";
+import { UiIcon } from "@/components/ui-icons";
+import { MAX_UPLOAD_BYTES, uploadErrorMessages } from "@/features/documents/validation";
 
 export function DocumentUpload() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,16 +35,10 @@ export function DocumentUpload() {
     formData.set("file", file);
 
     try {
-      const response = await fetch("/api/documents", {
-        method: "POST",
-        body: formData,
-      });
+      const response = await fetch("/api/documents", { method: "POST", body: formData });
       const body = (await response.json()) as { code?: string };
       if (!response.ok) {
-        setError(
-          uploadErrorMessages[body.code ?? ""] ??
-            "The upload failed. Please try again.",
-        );
+        setError(uploadErrorMessages[body.code ?? ""] ?? "The upload failed. Please try again.");
         return;
       }
       setSuccess("Upload complete. Your document is queued for processing.");
@@ -61,39 +53,31 @@ export function DocumentUpload() {
 
   return (
     <form className="mt-6" onSubmit={submit}>
-      <label className="block text-sm font-semibold" htmlFor="medical-record">
-        Choose a document or photo
+      <label className="group flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-6 py-9 text-center transition hover:border-teal-400 hover:bg-teal-50/50" htmlFor="medical-record">
+        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-teal-700 shadow-sm ring-1 ring-slate-200">
+          <UiIcon className="h-6 w-6" name="upload" />
+        </span>
+        <span className="mt-4 text-sm font-semibold text-slate-800">Choose a document or photo</span>
+        <span className="mt-1 text-xs leading-5 text-slate-500">PDF, JPEG, PNG, or WEBP · Maximum 20 MB · Private by default</span>
+        <input
+          ref={inputRef}
+          className="mt-5 block max-w-full text-sm text-slate-500 file:mr-4 file:rounded-lg file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-teal-800 file:shadow-sm file:ring-1 file:ring-slate-200"
+          disabled={busy}
+          id="medical-record"
+          name="file"
+          required
+          type="file"
+          accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp"
+        />
       </label>
-      <input
-        ref={inputRef}
-        className="mt-3 block w-full rounded-lg border border-slate-300 bg-white p-3 text-sm file:mr-4 file:rounded-md file:border-0 file:bg-teal-50 file:px-4 file:py-2 file:font-semibold file:text-teal-800"
-        id="medical-record"
-        name="file"
-        type="file"
-        accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp"
-        required
-        disabled={busy}
-      />
-      <p className="mt-2 text-sm text-slate-500">
-        PDF, JPEG, PNG, or WEBP. Maximum 20 MB. Files stay private.
-      </p>
-      <button
-        className="mt-5 rounded-lg bg-teal-800 px-5 py-3 font-semibold text-white hover:bg-teal-900 disabled:cursor-wait disabled:opacity-60"
-        type="submit"
-        disabled={busy}
-      >
-        {busy ? "Uploading…" : "Upload securely"}
-      </button>
-      {error ? (
-        <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {success ? (
-        <p className="mt-4 rounded-lg bg-teal-50 p-3 text-sm text-teal-900" role="status">
-          {success}
-        </p>
-      ) : null}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-slate-500">You will review extracted facts before they enter your history.</p>
+        <button className="rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-wait disabled:opacity-60" disabled={busy} type="submit">
+          {busy ? "Uploading…" : "Upload securely"}
+        </button>
+      </div>
+      {error ? <p className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</p> : null}
+      {success ? <p className="mt-4 rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm text-teal-900" role="status">{success}</p> : null}
     </form>
   );
 }

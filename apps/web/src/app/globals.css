@@ -1,11 +1,21 @@
 @import "tailwindcss";
 :root {
   color-scheme: light;
+  --brand: #0f766e;
+  --brand-dark: #115e59;
+  --canvas: #f5f7fa;
+  --ink: #0f172a;
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-behavior: smooth;
 }
 body {
   margin: 0;
-  background: #f7faf9;
-  color: #182c2b;
+  background: var(--canvas);
+  color: var(--ink);
   font-family:
     Inter,
     ui-sans-serif,
@@ -14,6 +24,27 @@ body {
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+:focus-visible {
+  outline: 3px solid rgba(13, 148, 136, 0.28);
+  outline-offset: 2px;
+}
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 .hero-grid {

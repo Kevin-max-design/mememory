@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { DocumentUpload } from "@/components/document-upload";
 import { AccountPrivacyControls } from "@/components/privacy-controls";
-import { logout } from "@/features/auth/actions";
+import { UiIcon, type IconName } from "@/components/ui-icons";
 import { authErrorMessage } from "@/features/auth/errors";
 import { getTimelineEventsForUser } from "@/features/timeline/data";
 import { requireUser } from "@/server/auth/require-user";
@@ -68,25 +68,19 @@ export default async function DashboardPage({
       actions={
         <>
           <Link
-            className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+            className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50"
             href="/medical-help"
           >
-            I need medical help
+            <UiIcon className="h-4 w-4" name="pulse" />
+            Medical help
           </Link>
           <Link
-            className="rounded-xl bg-teal-700 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"
+            className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800"
             href="#upload"
           >
-            ＋ Upload medical record
+            <UiIcon className="h-4 w-4" name="upload" />
+            Upload record
           </Link>
-          <form action={logout}>
-            <button
-              className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold"
-              type="submit"
-            >
-              Sign out
-            </button>
-          </form>
         </>
       }
       active="overview"
@@ -116,10 +110,8 @@ export default async function DashboardPage({
         </section>
       ) : null}
 
-      <div className="mt-7 flex gap-3 rounded-2xl border border-slate-300 bg-white px-5 py-4 text-sm text-slate-600">
-        <span aria-hidden="true" className="font-bold text-teal-700">
-          ↗
-        </span>
+      <div className="mt-6 flex gap-3 rounded-2xl border border-teal-100 bg-teal-50/60 px-5 py-4 text-sm leading-6 text-slate-600">
+        <UiIcon className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" name="shield" />
         <p>
           <strong className="text-teal-800">Review-first information:</strong>{" "}
           This view uses facts you approved or corrected from uploaded records.
@@ -127,10 +119,13 @@ export default async function DashboardPage({
         </p>
       </div>
 
-      <section className="mt-7 grid gap-6 xl:grid-cols-[minmax(300px,.72fr)_minmax(0,1.28fr)]">
-        <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="mt-6 grid gap-5 xl:grid-cols-[minmax(300px,.72fr)_minmax(0,1.28fr)]">
+        <article className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xl font-bold">∿ Health snapshot</h2>
+            <h2 className="flex items-center gap-2.5 text-lg font-semibold">
+              <UiIcon className="h-5 w-5 text-teal-700" name="pulse" />
+              Health snapshot
+            </h2>
             <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-teal-800">
               {facts.length} trusted
             </span>
@@ -163,7 +158,7 @@ export default async function DashboardPage({
           </Link>
         </article>
 
-        <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <article className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-xl font-bold">Recent medical events</h2>
             <Link
@@ -205,16 +200,15 @@ export default async function DashboardPage({
         </article>
       </section>
 
-      <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <QuickAction href="#upload" icon="＋" label="Upload record" />
-        <QuickAction href="/medical-help" icon="∿" label="Get medical help" />
-        <QuickAction href="/doctor-brief" icon="▧" label="Doctor brief" />
-        <QuickAction href="/emergency" icon="◇" label="Emergency summary" />
-        <QuickAction href="/ask" icon="□" label="Ask my records" />
+      <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <QuickAction description="Add a PDF or photo" href="#upload" icon="upload" label="Upload record" />
+        <QuickAction description="Questions with sources" href="/ask" icon="message" label="Ask my records" />
+        <QuickAction description="Printable reviewed summary" href="/doctor-brief" icon="brief" label="Doctor brief" />
+        <QuickAction description="Patient-controlled access" href="/emergency" icon="shield" label="Emergency card" />
       </section>
 
       {attention.length ? (
-        <section className="mt-7 rounded-3xl border border-amber-200 bg-amber-50 p-6">
+        <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold">Needs your review</h2>
@@ -245,7 +239,7 @@ export default async function DashboardPage({
       ) : null}
 
       <section
-        className="mt-7 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8"
+        className="mt-6 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:p-8"
         id="upload"
       >
         <h2 className="text-xl font-bold">Upload a medical record</h2>
@@ -256,9 +250,18 @@ export default async function DashboardPage({
         <DocumentUpload />
       </section>
 
-      <div id="privacy">
-        <AccountPrivacyControls />
-      </div>
+      <details className="mt-6 rounded-2xl border border-slate-200/80 bg-white" id="privacy">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
+          <span>
+            <span className="block font-semibold">Privacy & data controls</span>
+            <span className="mt-1 block text-sm text-slate-500">Export your information or manage account deletion.</span>
+          </span>
+          <span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">Open controls</span>
+        </summary>
+        <div className="border-t border-slate-100 px-6 pb-6">
+          <AccountPrivacyControls />
+        </div>
+      </details>
     </AppShell>
   );
 }
@@ -306,20 +309,25 @@ function QuickAction({
   href,
   icon,
   label,
+  description,
 }: {
   href: string;
-  icon: string;
+  icon: IconName;
   label: string;
+  description: string;
 }) {
   return (
     <Link
-      className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm transition hover:border-teal-300 hover:-translate-y-0.5"
+      className="group flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-teal-200 hover:shadow-md"
       href={href}
     >
-      <span className="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-teal-50 text-xl text-teal-700">
-        {icon}
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700 transition group-hover:bg-teal-100">
+        <UiIcon className="h-5 w-5" name={icon} />
       </span>
-      <span className="mt-3 block text-sm font-bold">{label}</span>
+      <span className="min-w-0 text-left">
+        <span className="block text-sm font-semibold text-slate-800">{label}</span>
+        <span className="mt-0.5 block truncate text-xs text-slate-400">{description}</span>
+      </span>
     </Link>
   );
 }

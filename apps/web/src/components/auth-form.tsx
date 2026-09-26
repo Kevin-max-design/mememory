@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AuthShell } from "@/components/auth-shell";
 import { authErrorMessage } from "@/features/auth/errors";
 
 type AuthFormProps = {
@@ -19,43 +20,34 @@ export function AuthForm({ action, error, mode, message }: AuthFormProps) {
         : undefined;
 
   return (
-    <main className="mx-auto min-h-screen max-w-md px-6 py-20">
-      <Link
-        className="text-sm font-semibold tracking-widest text-teal-700"
-        href="/"
-      >
-        MEDMEMORY
-      </Link>
-      <h1 className="mt-8 text-3xl font-semibold">
-        {isSignup ? "Create your private archive" : "Welcome back"}
-      </h1>
-      <p className="mt-3 text-slate-600">
-        {isSignup
-          ? "Use an email you control. Important extracted details always require review."
-          : "Sign in to access your medical record archive."}
-      </p>
+    <AuthShell
+      description={isSignup ? "Create a private place for your records. You decide which extracted facts become part of your history." : "Sign in to continue to your private health workspace."}
+      footer={
+        <p className="text-sm text-slate-500">
+          {isSignup ? "Already have an account?" : "New to MedMemory?"}{" "}
+          <Link className="font-semibold text-teal-800 hover:text-teal-900" href={isSignup ? "/login" : "/signup"}>
+            {isSignup ? "Sign in" : "Create an account"}
+          </Link>
+        </p>
+      }
+      title={isSignup ? "Create your private archive" : "Welcome back"}
+    >
       {notice ? (
-        <p
-          className="mt-6 rounded-lg bg-red-50 p-3 text-sm text-red-800"
-          role="alert"
-        >
+        <p className="mt-6 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
           {notice}
         </p>
       ) : null}
       {status ? (
-        <p
-          className="mt-6 rounded-lg bg-teal-50 p-3 text-sm text-teal-900"
-          role="status"
-        >
+        <p className="mt-6 rounded-xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-teal-900" role="status">
           {status}
         </p>
       ) : null}
-      <form action={action} className="mt-8 space-y-5">
+      <form action={action} className="mt-7 space-y-5">
         {isSignup ? (
-          <label className="block text-sm font-medium">
+          <label className="block text-sm font-semibold text-slate-700">
             Full name
             <input
-              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+              className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 shadow-sm transition placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-50"
               name="fullName"
               required
               maxLength={200}
@@ -63,30 +55,23 @@ export function AuthForm({ action, error, mode, message }: AuthFormProps) {
             />
           </label>
         ) : null}
-        <label className="block text-sm font-medium">
+        <label className="block text-sm font-semibold text-slate-700">
           Email
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+            className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 shadow-sm transition placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-50"
             name="email"
             type="email"
             required
             autoComplete="email"
           />
         </label>
-        {!isSignup ? (
-          <div className="-mt-3 text-right">
-            <Link
-              className="text-sm font-semibold text-teal-800 underline"
-              href="/forgot-password"
-            >
-              Forgot password?
-            </Link>
-          </div>
-        ) : null}
-        <label className="block text-sm font-medium">
-          Password
+        <label className="block text-sm font-semibold text-slate-700">
+          <span className="flex items-center justify-between gap-4">
+            Password
+            {!isSignup ? <Link className="text-xs font-semibold text-teal-800 hover:text-teal-900" href="/forgot-password">Forgot password?</Link> : null}
+          </span>
           <input
-            className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
+            className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 shadow-sm transition placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-50"
             name="password"
             type="password"
             required
@@ -96,7 +81,7 @@ export function AuthForm({ action, error, mode, message }: AuthFormProps) {
           />
         </label>
         {isSignup ? (
-          <label className="flex items-start gap-3 text-sm leading-6 text-slate-600">
+          <label className="flex items-start gap-3 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
             <input
               className="mt-1 h-4 w-4 rounded border-slate-300 accent-teal-800"
               name="acceptedTerms"
@@ -123,26 +108,10 @@ export function AuthForm({ action, error, mode, message }: AuthFormProps) {
             </span>
           </label>
         ) : null}
-        <button
-          className="w-full rounded-lg bg-teal-800 px-4 py-3 font-semibold text-white hover:bg-teal-900"
-          type="submit"
-        >
+        <button className="w-full rounded-xl bg-teal-700 px-4 py-3.5 font-semibold text-white shadow-sm transition hover:bg-teal-800" type="submit">
           {isSignup ? "Create account" : "Sign in"}
         </button>
       </form>
-      <p className="mt-6 text-sm text-slate-600">
-        {isSignup ? "Already have an account?" : "New to MedMemory?"}{" "}
-        <Link
-          className="font-semibold text-teal-800 underline"
-          href={isSignup ? "/login" : "/signup"}
-        >
-          {isSignup ? "Sign in" : "Create one"}
-        </Link>
-      </p>
-      <p className="mt-8 text-xs leading-5 text-slate-500">
-        MedMemory is not an emergency service. Verify important information
-        against the original record.
-      </p>
-    </main>
+    </AuthShell>
   );
 }
