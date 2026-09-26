@@ -1,6 +1,7 @@
 import { logout } from "@/features/auth/actions";
 import { authErrorMessage } from "@/features/auth/errors";
 import { DocumentUpload } from "@/components/document-upload";
+import { AppShell } from "@/components/app-shell";
 import { requireUser } from "@/server/auth/require-user";
 import Link from "next/link";
 import { getTimelineEventsForUser } from "@/features/timeline/data";
@@ -14,39 +15,48 @@ export default async function DashboardPage({
   const query = await searchParams;
   const notice = authErrorMessage(query.error);
   const { supabase, user } = await requireUser();
-  const [profileResult, documentsResult, timelineEvents] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("documents")
-      .select(
-        "id, display_name, mime_type, file_size, processing_status, created_at",
-      )
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false }),
-    getTimelineEventsForUser(supabase, user.id),
-  ]);
+  const [profileResult, documentsResult, recordsResult, timelineEvents] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("documents")
+        .select(
+          "id, display_name, mime_type, file_size, processing_status, created_at",
+        )
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("medical_records")
+        .select("document_id,review_status")
+        .eq("user_id", user.id),
+      getTimelineEventsForUser(supabase, user.id),
+    ]);
   const { data: profile, error } = profileResult;
   if (error) throw new Error("PROFILE_READ_FAILED");
   const { data: documents, error: documentsError } = documentsResult;
   if (documentsError) throw new Error("DOCUMENT_LIST_FAILED");
+  if (recordsResult.error) throw new Error("RECORD_STATUS_READ_FAILED");
+  const facts = timelineEvents.filter(
+    (event) => event.category !== "documents",
+  );
+  const pendingDocumentIds = new Set(
+    (recordsResult.data ?? [])
+      .filter((record) => record.review_status === "extracted")
+      .map((record) => record.document_id),
+  );
+  const attention = (documents ?? []).filter(
+    (document) =>
+      document.processing_status === "needs_review" &&
+      pendingDocumentIds.has(document.id),
+  );
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-12">
-      <header className="flex items-center justify-between border-b border-slate-200 pb-6">
-        <div>
-          <p className="text-sm font-semibold tracking-widest text-teal-700">
-            MEDMEMORY
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold">
-            {profile?.full_name
-              ? `Welcome, ${profile.full_name}`
-              : "Your health archive"}
-          </h1>
-        </div>
+    <AppShell
+      actions={
         <form action={logout}>
           <button
             className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold"
@@ -55,7 +65,15 @@ export default async function DashboardPage({
             Sign out
           </button>
         </form>
-      </header>
+      }
+      active="overview"
+      description="Your reviewed medical history, documents needing attention, and private record tools in one place."
+      title={
+        profile?.full_name
+          ? `Welcome, ${profile.full_name}`
+          : "Your health overview"
+      }
+    >
       {notice ? (
         <p
           className="mt-6 rounded-lg bg-red-50 p-3 text-sm text-red-800"
@@ -96,7 +114,40 @@ export default async function DashboardPage({
           </ol>
         </section>
       ) : null}
-      <section className="mt-10 rounded-2xl border border-slate-200 bg-white p-8">
+      <section className="mt-8 grid gap-3 sm:grid-cols-3">
+        <Link
+          className="rounded-2xl bg-teal-800 p-5 text-white"
+          href="/records"
+        >
+          <p className="text-sm text-teal-100">Trusted medical facts</p>
+          <p className="mt-2 text-3xl font-semibold">{facts.length}</p>
+          <p className="mt-2 text-xs text-teal-100">Open medical history →</p>
+        </Link>
+        <Link
+          className="rounded-2xl border border-amber-200 bg-amber-50 p-5"
+          href="/records"
+        >
+          <p className="text-sm text-amber-800">Documents needing review</p>
+          <p className="mt-2 text-3xl font-semibold text-amber-950">
+            {attention.length}
+          </p>
+          <p className="mt-2 text-xs text-amber-800">Continue reviewing →</p>
+        </Link>
+        <Link
+          className="rounded-2xl border border-slate-200 bg-white p-5"
+          href="/records"
+        >
+          <p className="text-sm text-slate-500">Documents in archive</p>
+          <p className="mt-2 text-3xl font-semibold">
+            {documents?.length ?? 0}
+          </p>
+          <p className="mt-2 text-xs text-slate-500">Manage source files →</p>
+        </Link>
+      </section>
+      <section
+        className="mt-8 rounded-2xl border border-slate-200 bg-white p-8"
+        id="upload"
+      >
         <h2 className="text-xl font-semibold">Upload a medical record</h2>
         <p className="mt-2 text-slate-600">
           Add a scan, photo, or PDF to your private archive.
@@ -118,14 +169,34 @@ export default async function DashboardPage({
             Open timeline
           </Link>
         </div>
-        {timelineEvents.length ? (
+        {facts.length ? (
           <ul className="mt-4 divide-y divide-slate-100">
-            {timelineEvents.slice(0, 3).map((event) => (
-              <li className="flex justify-between gap-4 py-3" key={event.id}>
-                <span>{event.title}</span>
-                <span className="text-sm text-slate-500">
-                  {new Date(event.date).toLocaleDateString()}
-                </span>
+            {facts.slice(0, 4).map((event) => (
+              <li
+                className="flex flex-wrap items-start justify-between gap-4 py-4"
+                key={event.id}
+              >
+                <div>
+                  <span className="rounded-full bg-teal-50 px-2 py-1 text-xs font-semibold capitalize text-teal-800">
+                    {event.category}
+                  </span>
+                  <p className="mt-2 font-semibold">{event.title}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {event.description}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm text-slate-500">
+                    {new Date(event.date).toLocaleDateString()}
+                  </span>
+                  <br />
+                  <Link
+                    className="mt-2 inline-block text-sm font-semibold text-teal-700"
+                    href={event.reviewHref ?? event.sourceHref}
+                  >
+                    View source
+                  </Link>
+                </div>
               </li>
             ))}
           </ul>
@@ -135,48 +206,55 @@ export default async function DashboardPage({
           </p>
         )}
       </section>
-      <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold">Search records</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Search documents, source text, and reviewed facts.
-            </p>
+      <section className="mt-8 grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold">Search records</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Search documents, source text, and reviewed facts.
+              </p>
+            </div>
+            <Link
+              className="rounded-lg border border-teal-700 px-4 py-2 text-sm font-semibold text-teal-700"
+              href="/search"
+            >
+              Search
+            </Link>
           </div>
-          <Link
-            className="rounded-lg border border-teal-700 px-4 py-2 text-sm font-semibold text-teal-700"
-            href="/search"
-          >
-            Search
-          </Link>
         </div>
-      </section>
-      <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold">Ask MedMemory</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Ask questions answered only from your reviewed records.
-            </p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold">Ask MedMemory</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Ask questions answered only from your reviewed records.
+              </p>
+            </div>
+            <Link
+              className="rounded-lg border border-teal-700 px-4 py-2 text-sm font-semibold text-teal-700"
+              href="/ask"
+            >
+              Ask
+            </Link>
           </div>
-          <Link
-            className="rounded-lg border border-teal-700 px-4 py-2 text-sm font-semibold text-teal-700"
-            href="/ask"
-          >
-            Ask
-          </Link>
         </div>
       </section>
       <section className="mt-8">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Your documents</h2>
+          <div>
+            <h2 className="text-xl font-semibold">Needs your attention</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Review extracted facts before they enter your history.
+            </p>
+          </div>
           <Link className="text-sm font-semibold text-teal-700" href="/records">
-            View all records
+            Open medical history
           </Link>
         </div>
-        {documents?.length ? (
+        {attention.length ? (
           <ul className="mt-4 space-y-3">
-            {documents.map((document) => (
+            {attention.slice(0, 4).map((document) => (
               <li
                 className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4"
                 key={document.id}
@@ -192,21 +270,19 @@ export default async function DashboardPage({
                   <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-medium capitalize text-amber-800">
                     {document.processing_status.replace("_", " ")}
                   </span>
-                  {document.processing_status === "needs_review" ? (
-                    <Link
-                      className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white"
-                      href={`/records/${document.id}/review`}
-                    >
-                      Review
-                    </Link>
-                  ) : null}
+                  <Link
+                    className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white"
+                    href={`/records/${document.id}/review`}
+                  >
+                    Review
+                  </Link>
                 </div>
               </li>
             ))}
           </ul>
         ) : (
           <p className="mt-4 rounded-xl border border-dashed border-slate-300 p-6 text-slate-600">
-            No documents yet. Your first upload will appear here.
+            You are caught up. No documents currently need review.
           </p>
         )}
       </section>
@@ -216,6 +292,6 @@ export default async function DashboardPage({
         against the original document. MedMemory does not provide medical advice
         or emergency services.
       </p>
-    </main>
+    </AppShell>
   );
 }
