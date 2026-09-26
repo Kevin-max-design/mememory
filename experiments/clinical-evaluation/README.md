@@ -33,6 +33,13 @@ guideline version under which they were produced.
 - [Annotation guidelines](guidelines-v1.0.md)
 - [Harness specification](harness-spec-v1.0.md)
 - [Machine-readable gold-set schema](schemas/goldset-schema-v1.0.json)
+- [Dependency-free contract validator](validate-contract.mjs)
+
+Validate the draft contract with:
+
+```bash
+node experiments/clinical-evaluation/validate-contract.mjs
+```
 
 ## Milestones
 

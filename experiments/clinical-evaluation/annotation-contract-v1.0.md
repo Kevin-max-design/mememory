@@ -39,9 +39,10 @@ Disagreements follow:
 Workflow logs contain identifiers, state, actor, timestamp, and contract versions. They must not
 contain medical values, free text, diagnoses, medications, or document content.
 
-Every adjudicated disagreement records its type, resolution, guideline reference, adjudicator,
-and whether the guideline needs clarification. Repeated disagreements are evidence of guideline
-ambiguity and must not be treated automatically as reviewer error.
+Every adjudicated disagreement records its type, resolution, guideline reference, both original
+reviewer identifiers, adjudicator, and whether the guideline needs clarification. Repeated
+disagreements are evidence of guideline ambiguity and must not be treated automatically as
+reviewer error.
 
 ## Annotation units
 
@@ -68,10 +69,8 @@ Optional source fields use `null` and one reason:
 - `absent_in_source`
 - `illegible`
 - `ambiguous`
-- `not_applicable`
 
-Annotators never infer missing values. `not_applicable` is permitted only where the schema says
-the field can be inapplicable; it is not a synonym for missing.
+Annotators never infer missing values.
 
 Medication completeness is:
 

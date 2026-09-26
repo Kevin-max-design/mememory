@@ -53,6 +53,9 @@ Report counts and Wilson score intervals alongside every supported proportion.
 - Negation, temporality, subject, and certainty accuracy.
 - Provenance integrity: accepted candidates whose page, block, and span resolve and support the
   asserted fact.
+- Span validation requires `span_start < span_end` and exact agreement between `source_text` and
+  the referenced block substring; this cross-field check is enforced by the harness because JSON
+  Schema cannot compare the two integer fields directly.
 - Unsupported accepted-candidate count.
 - Human-review correction, rejection, and approval rates, reported from privacy-safe aggregate
   events only.

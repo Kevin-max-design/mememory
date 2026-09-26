@@ -37,13 +37,7 @@
     "nullableText": { "type": ["string", "null"], "minLength": 1 },
     "nullReason": {
       "type": ["string", "null"],
-      "enum": [
-        "absent_in_source",
-        "illegible",
-        "ambiguous",
-        "not_applicable",
-        null
-      ]
+      "enum": ["absent_in_source", "illegible", "ambiguous", null]
     },
     "nullableField": {
       "type": "object",
@@ -62,12 +56,7 @@
           "then": {
             "properties": {
               "null_reason": {
-                "enum": [
-                  "absent_in_source",
-                  "illegible",
-                  "ambiguous",
-                  "not_applicable"
-                ]
+                "enum": ["absent_in_source", "illegible", "ambiguous"]
               }
             }
           },
@@ -252,6 +241,7 @@
                 "disagreement_type",
                 "resolution",
                 "guideline_ref",
+                "reviewer_ids",
                 "adjudicator_id",
                 "guideline_flag"
               ],
@@ -259,6 +249,16 @@
                 "disagreement_type": { "type": "string", "minLength": 1 },
                 "resolution": { "type": "string", "minLength": 1 },
                 "guideline_ref": { "type": "string", "minLength": 1 },
+                "reviewer_ids": {
+                  "type": "array",
+                  "minItems": 2,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
                 "adjudicator_id": { "type": "string", "minLength": 1 },
                 "guideline_flag": { "type": "boolean" }
               }
