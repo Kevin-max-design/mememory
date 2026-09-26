@@ -103,7 +103,7 @@ export default async function DashboardPage({
       actions={
         <>
           <Link
-            className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50"
+            className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700"
             href="/medical-help"
           >
             <UiIcon className="h-4 w-4" name="pulse" />
@@ -154,22 +154,25 @@ export default async function DashboardPage({
         </p>
       </div>
 
-      <section className="mt-6 grid items-start gap-5 xl:grid-cols-[minmax(320px,.78fr)_minmax(0,1.22fr)]">
-        <article className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <section className="mt-6 grid items-start gap-5 xl:grid-cols-[minmax(340px,.82fr)_minmax(0,1.18fr)]">
+        <article className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-gradient-to-br from-white via-white to-teal-50/50 shadow-[0_12px_35px_rgba(15,23,42,0.06)]">
+          <div className="p-6 sm:p-7">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="flex items-center gap-2.5 text-lg font-semibold">
-              <UiIcon className="h-5 w-5 text-teal-700" name="pulse" />
-              Health snapshot
-            </h2>
-            <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-teal-800">
-              {facts.length} reviewed
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-teal-700 text-white shadow-sm">
+                <UiIcon className="h-5 w-5" name="pulse" />
+              </span>
+              <div>
+                <h2 className="text-lg font-semibold">Health snapshot</h2>
+                <p className="mt-0.5 text-xs text-slate-500">Reviewed information only</p>
+              </div>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-teal-800 ring-1 ring-teal-100">
+              {facts.length} facts
             </span>
           </div>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            A quick view of reviewed conditions, allergies, and medications.
-          </p>
           {snapshotItemCount ? (
-            <div className="mt-5 divide-y divide-slate-100">
+            <div className="mt-6 space-y-3">
               <SnapshotGroup
                 empty="No reviewed conditions"
                 items={conditions}
@@ -190,7 +193,7 @@ export default async function DashboardPage({
               />
             </div>
           ) : (
-            <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+            <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-white/70 p-5">
               <p className="text-sm font-semibold text-slate-700">
                 No snapshot items yet
               </p>
@@ -201,15 +204,22 @@ export default async function DashboardPage({
               </p>
             </div>
           )}
+          </div>
+          <div className="grid grid-cols-3 border-t border-slate-200/70 bg-white/75">
+            <SnapshotMetric label="Reviewed" value={facts.length} />
+            <SnapshotMetric label="Documents" value={(documents ?? []).length} />
+            <SnapshotMetric label="To review" value={attention.length} />
+          </div>
           <Link
-            className="mt-7 inline-flex text-sm font-semibold text-teal-700"
+            className="flex items-center justify-between border-t border-slate-200/70 bg-white px-6 py-4 text-sm font-semibold text-teal-700 transition hover:bg-teal-50/60"
             href="/records"
           >
-            Open full medical history →
+            <span>Open medical history</span>
+            <UiIcon className="h-4 w-4" name="arrow" />
           </Link>
         </article>
 
-        <article className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+        <article className="rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-[0_12px_35px_rgba(15,23,42,0.06)] sm:p-7">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Recent reviewed facts</h2>
@@ -225,12 +235,13 @@ export default async function DashboardPage({
             </Link>
           </div>
           {facts.length ? (
-            <ol className="mt-4 divide-y divide-slate-100">
-              {facts.slice(0, 5).map((event) => (
+            <ol className="relative mt-5 space-y-1 before:absolute before:bottom-5 before:left-[5px] before:top-5 before:w-px before:bg-slate-200">
+              {facts.slice(0, 4).map((event) => (
                 <li
-                  className="grid gap-2 py-4 first:pt-2 sm:grid-cols-[84px_minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+                  className="relative grid gap-2 py-3 pl-7 sm:grid-cols-[94px_minmax(0,1fr)_auto] sm:items-center sm:gap-4"
                   key={event.id}
                 >
+                  <span className="absolute left-0 top-[1.15rem] h-[11px] w-[11px] rounded-full border-[3px] border-teal-600 bg-white ring-4 ring-white" />
                   <time className="text-xs font-medium text-slate-400">
                     {new Date(event.date).toLocaleDateString(undefined, {
                       month: "short",
@@ -240,7 +251,7 @@ export default async function DashboardPage({
                   </time>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-700">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
                         {eventCategoryLabels[event.category] ?? event.category}
                       </span>
                       <h3 className="truncate text-sm font-semibold text-slate-900">
@@ -253,7 +264,7 @@ export default async function DashboardPage({
                   </div>
                   <Link
                     aria-label={`View source for ${event.title}`}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-teal-700 transition hover:bg-teal-50"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-teal-700 transition hover:bg-teal-50"
                     href={event.reviewHref ?? event.sourceHref}
                   >
                     <UiIcon className="h-4 w-4" name="arrow" />
@@ -275,11 +286,12 @@ export default async function DashboardPage({
         </article>
       </section>
 
-      <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="mt-5 grid overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)] sm:grid-cols-2 lg:grid-cols-5">
         <QuickAction description="Add a PDF or photo" href="#upload" icon="upload" label="Upload record" />
-        <QuickAction description="Questions with sources" href="/ask" icon="message" label="Ask my records" />
+        <QuickAction description="Organize symptoms for care" href="/medical-help" icon="pulse" label="Medical help" tone="red" />
         <QuickAction description="Printable reviewed summary" href="/doctor-brief" icon="brief" label="Doctor brief" />
         <QuickAction description="Patient-controlled access" href="/emergency" icon="shield" label="Emergency card" />
+        <QuickAction description="Questions with sources" href="/ask" icon="message" label="Ask my records" />
       </section>
 
       {attention.length ? (
@@ -358,9 +370,11 @@ function SnapshotGroup({
     slate: "bg-slate-50 text-slate-700 ring-slate-100",
   };
   return (
-    <section className="py-4 first:pt-1 last:pb-1">
+    <section className="rounded-2xl border border-white bg-white/80 p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold text-slate-500">{label}</p>
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+          {label}
+        </p>
         {items.length ? (
           <span className="text-[11px] font-medium text-slate-400">
             {items.length}
@@ -385,28 +399,49 @@ function SnapshotGroup({
   );
 }
 
+function SnapshotMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="border-r border-slate-200/70 px-3 py-3.5 text-center last:border-r-0">
+      <strong className="block text-lg font-semibold text-slate-900">
+        {value}
+      </strong>
+      <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        {label}
+      </span>
+    </div>
+  );
+}
+
 function QuickAction({
   href,
   icon,
   label,
   description,
+  tone = "teal",
 }: {
   href: string;
   icon: IconName;
   label: string;
   description: string;
+  tone?: "teal" | "red";
 }) {
   return (
     <Link
-      className="group flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-teal-200 hover:shadow-md"
+      className="group flex min-h-32 flex-col items-center justify-center border-b border-slate-100 bg-white p-4 text-center transition hover:bg-slate-50/70 last:border-b-0 sm:border-r sm:even:border-r-0 lg:border-b-0 lg:even:border-r lg:last:border-r-0"
       href={href}
     >
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700 transition group-hover:bg-teal-100">
+      <span
+        className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl transition ${
+          tone === "red"
+            ? "bg-red-50 text-red-600 group-hover:bg-red-100"
+            : "bg-teal-50 text-teal-700 group-hover:bg-teal-100"
+        }`}
+      >
         <UiIcon className="h-5 w-5" name={icon} />
       </span>
-      <span className="min-w-0 text-left">
+      <span className="mt-3 min-w-0">
         <span className="block text-sm font-semibold text-slate-800">{label}</span>
-        <span className="mt-0.5 block truncate text-xs text-slate-400">{description}</span>
+        <span className="mt-1 block text-xs leading-5 text-slate-400">{description}</span>
       </span>
     </Link>
   );
