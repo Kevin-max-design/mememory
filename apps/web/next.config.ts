@@ -1,23 +1,33 @@
 import type { NextConfig } from "next";
 
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'self'",
-  "object-src 'none'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
-  "frame-src 'self' https://*.supabase.co",
-  "worker-src 'self' blob:",
-  "manifest-src 'self'",
-  "upgrade-insecure-requests",
-].join("; ");
+export function createContentSecurityPolicy(
+  environment = process.env.NODE_ENV,
+) {
+  const scripts = ["'self'", "'unsafe-inline'"];
+  // Next.js development chunks use eval for source maps and React debugging.
+  // Production bundles do not need it and retain the stricter policy.
+  if (environment === "development") scripts.push("'unsafe-eval'");
+
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'self'",
+    "object-src 'none'",
+    `script-src ${scripts.join(" ")}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+    "frame-src 'self' https://*.supabase.co",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+    "upgrade-insecure-requests",
+  ].join("; ");
+}
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["127.0.0.1"],
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   async headers() {
@@ -32,7 +42,10 @@ const nextConfig: NextConfig = {
             value: "camera=(), microphone=(), geolocation=(), payment=()",
           },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
-          { key: "Content-Security-Policy", value: contentSecurityPolicy },
+          {
+            key: "Content-Security-Policy",
+            value: createContentSecurityPolicy(),
+          },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           {
             key: "Strict-Transport-Security",

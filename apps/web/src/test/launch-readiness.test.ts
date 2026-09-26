@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { createContentSecurityPolicy } from "../../next.config";
 
 const source = (path: string) =>
   readFileSync(resolve(process.cwd(), path), "utf8");
@@ -22,6 +23,19 @@ describe("launch-facing safety and access", () => {
     expect(config).toContain("object-src 'none'");
     expect(config).toContain("frame-ancestors 'self'");
     expect(config).toContain("Strict-Transport-Security");
+    expect(config).toContain('allowedDevOrigins: ["127.0.0.1"]');
+  });
+
+  it("allows Next.js development hydration without weakening production CSP", () => {
+    expect(createContentSecurityPolicy("development")).toContain(
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    );
+    expect(createContentSecurityPolicy("production")).toContain(
+      "script-src 'self' 'unsafe-inline'",
+    );
+    expect(createContentSecurityPolicy("production")).not.toContain(
+      "'unsafe-eval'",
+    );
   });
 
   it("keeps the landing page aligned with the shipped review-first flow", () => {
