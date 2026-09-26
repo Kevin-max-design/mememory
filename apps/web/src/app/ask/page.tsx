@@ -58,35 +58,56 @@ export default async function AskPage({
       },
     });
   }
+  const suggestions = [
+    "What reviewed diagnoses are in my records?",
+    "Which medications are listed in my reviewed records?",
+    "What are my most recent lab results?",
+    "Which allergies are recorded?",
+    "Which procedures are in my history?",
+  ];
   return (
     <AppShell
       active="ask"
-      title="Ask MedMemory"
-      description="Answers are based only on your stored reviewed records, with links to their sources."
+      actions={
+        <span className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold">
+          ✧ Verified records only
+        </span>
+      }
+      title="Ask my records"
+      description="Ask about your reviewed medical history and see the supporting sources."
     >
-      <form className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
-        <label className="font-semibold">
-          Your question
-          <input
-            autoFocus
-            className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 font-normal"
-            defaultValue={question}
-            maxLength={300}
-            name="q"
-            placeholder="What medicines have I taken?"
-          />
-        </label>
-        <button className="mt-4 rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white">
-          Ask
-        </button>
-      </form>
+      <section className="mx-auto mt-14 max-w-3xl text-center">
+        <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-teal-50 text-3xl text-teal-700">
+          □
+        </span>
+        <h2 className="mt-5 text-2xl font-bold">Interactive medical memory</h2>
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
+          Answers use only approved or corrected facts from your records. Every
+          answer includes evidence links and may still require verification.
+        </p>
+      </section>
       {!question ? (
-        <section className="mt-8 rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-600">
-          Ask about medications, lab results, diagnoses, allergies, procedures,
-          vitals, or documents.
+        <section className="mx-auto mt-10 max-w-3xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-600">
+            Suggested questions
+          </h2>
+          <div className="mt-4 space-y-2">
+            {suggestions.map((suggestion) => (
+              <Link
+                className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:border-teal-200 hover:bg-teal-50"
+                href={`/ask?q=${encodeURIComponent(suggestion)}`}
+                key={suggestion}
+              >
+                {suggestion}
+                <span aria-hidden="true" className="text-slate-400">
+                  →
+                </span>
+              </Link>
+            ))}
+          </div>
         </section>
       ) : result ? (
-        <section className="mt-8">
+        <section className="mx-auto mt-10 max-w-3xl">
           <div
             className={`rounded-xl border p-6 ${result.noEvidence ? "border-amber-200 bg-amber-50" : "border-teal-200 bg-white"}`}
           >
@@ -136,6 +157,27 @@ export default async function AskPage({
           ) : null}
         </section>
       ) : null}
+      <form className="mx-auto mt-10 flex max-w-4xl gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg">
+        <label className="sr-only" htmlFor="ask-question">
+          Ask a question about your health records
+        </label>
+        <input
+          autoFocus
+          className="min-w-0 flex-1 rounded-xl px-4 py-3 outline-none"
+          defaultValue={question}
+          id="ask-question"
+          maxLength={300}
+          name="q"
+          placeholder="Ask a question about your health records…"
+        />
+        <button className="rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white">
+          Ask
+        </button>
+      </form>
+      <p className="mt-3 text-center text-xs text-slate-500">
+        Answers are generated only from your reviewed records and are not
+        medical advice.
+      </p>
     </AppShell>
   );
 }
