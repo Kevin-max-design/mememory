@@ -36,7 +36,6 @@ Envelope and candidate failures have separate policies:
 ## Frozen Qwen result
 
 Candidate-object accounting:
-
 - Total: 6
 - Accepted: 5
 - Rejected: 1
