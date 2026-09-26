@@ -3,7 +3,7 @@ import { authErrorMessage } from "@/features/auth/errors";
 import { DocumentUpload } from "@/components/document-upload";
 import { requireUser } from "@/server/auth/require-user";
 import Link from "next/link";
-import { getTimelineEvents } from "@/features/timeline/data";
+import { getTimelineEventsForUser } from "@/features/timeline/data";
 import { AccountPrivacyControls } from "@/components/privacy-controls";
 
 export default async function DashboardPage({
@@ -14,21 +14,25 @@ export default async function DashboardPage({
   const query = await searchParams;
   const notice = authErrorMessage(query.error);
   const { supabase, user } = await requireUser();
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("full_name")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [profileResult, documentsResult, timelineEvents] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("documents")
+      .select(
+        "id, display_name, mime_type, file_size, processing_status, created_at",
+      )
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+    getTimelineEventsForUser(supabase, user.id),
+  ]);
+  const { data: profile, error } = profileResult;
   if (error) throw new Error("PROFILE_READ_FAILED");
-
-  const { data: documents, error: documentsError } = await supabase
-    .from("documents")
-    .select(
-      "id, display_name, mime_type, file_size, processing_status, created_at",
-    )
-    .order("created_at", { ascending: false });
+  const { data: documents, error: documentsError } = documentsResult;
   if (documentsError) throw new Error("DOCUMENT_LIST_FAILED");
-  const timelineEvents = await getTimelineEvents();
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
