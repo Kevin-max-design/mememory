@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://medmemory.local/schemas/goldset-schema-v1.0.json",
+  "title": "MedMemory gold set annotation v1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "guideline_version",
+    "document",
+    "annotations",
+    "review"
+  ],
+  "properties": {
+    "contract_version": { "const": "annotation-contract-v1.0" },
+    "guideline_version": { "const": "guidelines-v1.0" },
+    "document": { "$ref": "#/$defs/document" },
+    "annotations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["labs", "medications", "diagnoses"],
+      "properties": {
+        "labs": { "type": "array", "items": { "$ref": "#/$defs/lab" } },
+        "medications": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/medication" }
+        },
+        "diagnoses": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/diagnosis" }
+        }
+      }
+    },
+    "review": { "$ref": "#/$defs/review" }
+  },
+  "$defs": {
+    "nullableText": { "type": ["string", "null"], "minLength": 1 },
+    "nullReason": {
+      "type": ["string", "null"],
+      "enum": [
+        "absent_in_source",
+        "illegible",
+        "ambiguous",
+        "not_applicable",
+        null
+      ]
+    },
+    "nullableField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "null_reason"],
+      "properties": {
+        "value": { "$ref": "#/$defs/nullableText" },
+        "null_reason": { "$ref": "#/$defs/nullReason" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "value": { "type": "null" } },
+            "required": ["value"]
+          },
+          "then": {
+            "properties": {
+              "null_reason": {
+                "enum": [
+                  "absent_in_source",
+                  "illegible",
+                  "ambiguous",
+                  "not_applicable"
+                ]
+              }
+            }
+          },
+          "else": { "properties": { "null_reason": { "type": "null" } } }
+        }
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page_number",
+        "block_id",
+        "span_start",
+        "span_end",
+        "source_text"
+      ],
+      "properties": {
+        "page_number": { "type": "integer", "minimum": 1 },
+        "block_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "span_start": { "type": "integer", "minimum": 0 },
+        "span_end": { "type": "integer", "minimum": 1 },
+        "source_text": { "type": "string", "minLength": 1 }
+      }
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_id",
+        "source_provenance",
+        "doc_type",
+        "quality_tier",
+        "partition"
+      ],
+      "properties": {
+        "document_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "source_provenance": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "doc_type": {
+          "enum": [
+            "digital_lab",
+            "scanned_lab",
+            "clinical_note",
+            "discharge_summary",
+            "medication_list",
+            "other"
+          ]
+        },
+        "quality_tier": { "enum": ["easy", "medium", "hard"] },
+        "partition": {
+          "enum": ["development", "validation", "locked_test", "challenge"]
+        }
+      }
+    },
+    "lab": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "annotation_id",
+        "analyte",
+        "value",
+        "unit",
+        "reference_range",
+        "specimen",
+        "date",
+        "provenance"
+      ],
+      "properties": {
+        "annotation_id": { "type": "string", "minLength": 1 },
+        "analyte": { "type": "string", "minLength": 1 },
+        "value": { "$ref": "#/$defs/nullableField" },
+        "unit": { "$ref": "#/$defs/nullableField" },
+        "reference_range": { "$ref": "#/$defs/nullableField" },
+        "specimen": { "$ref": "#/$defs/nullableField" },
+        "date": { "$ref": "#/$defs/nullableField" },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "medication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "annotation_id",
+        "name",
+        "dose",
+        "unit",
+        "frequency",
+        "route",
+        "start_date",
+        "status",
+        "completeness_status",
+        "provenance"
+      ],
+      "properties": {
+        "annotation_id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "dose": { "$ref": "#/$defs/nullableField" },
+        "unit": { "$ref": "#/$defs/nullableField" },
+        "frequency": { "$ref": "#/$defs/nullableField" },
+        "route": { "$ref": "#/$defs/nullableField" },
+        "start_date": { "$ref": "#/$defs/nullableField" },
+        "status": { "$ref": "#/$defs/nullableField" },
+        "completeness_status": {
+          "enum": ["complete", "partial_source", "ambiguous", "illegible"]
+        },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "diagnosis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "annotation_id",
+        "condition",
+        "negation",
+        "temporality",
+        "subject",
+        "certainty",
+        "provenance"
+      ],
+      "properties": {
+        "annotation_id": { "type": "string", "minLength": 1 },
+        "condition": { "type": "string", "minLength": 1 },
+        "negation": { "enum": ["affirmed", "negated", "unknown"] },
+        "temporality": {
+          "enum": [
+            "current",
+            "historical",
+            "future_or_planned",
+            "resolved",
+            "unknown"
+          ]
+        },
+        "subject": { "enum": ["patient", "family", "other", "unknown"] },
+        "certainty": {
+          "enum": [
+            "confirmed",
+            "suspected",
+            "possible",
+            "conditional",
+            "unknown"
+          ]
+        },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewer_id",
+        "reviewer_role",
+        "state",
+        "annotated_at",
+        "adjudication"
+      ],
+      "properties": {
+        "reviewer_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "reviewer_role": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "state": {
+          "enum": [
+            "assigned",
+            "in_review",
+            "submitted",
+            "adjudication_required",
+            "adjudicated",
+            "gold"
+          ]
+        },
+        "annotated_at": { "type": "string", "format": "date-time" },
+        "adjudication": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "disagreement_type",
+                "resolution",
+                "guideline_ref",
+                "adjudicator_id",
+                "guideline_flag"
+              ],
+              "properties": {
+                "disagreement_type": { "type": "string", "minLength": 1 },
+                "resolution": { "type": "string", "minLength": 1 },
+                "guideline_ref": { "type": "string", "minLength": 1 },
+                "adjudicator_id": { "type": "string", "minLength": 1 },
+                "guideline_flag": { "type": "boolean" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
