@@ -7,9 +7,30 @@ import { authErrorMessage } from "@/features/auth/errors";
 import { getTimelineEventsForUser } from "@/features/timeline/data";
 import { requireUser } from "@/server/auth/require-user";
 
-function withoutPrefix(value: string) {
-  return value.replace(/^(Diagnosis|Allergy|Medication):\s*/i, "");
+function cleanSnapshotItems(values: string[]) {
+  return [
+    ...new Set(
+      values
+        .map((value) =>
+          value
+            .replace(/^(Diagnosis|Allergy|Medication)\s*:\s*/i, "")
+            .replace(/^[:\-–—•\s]+|[:\-–—•\s]+$/g, "")
+            .trim(),
+        )
+        .filter((value) => value.length > 1 && /[\p{L}\p{N}]/u.test(value)),
+    ),
+  ];
 }
+
+const eventCategoryLabels: Record<string, string> = {
+  labs: "Lab",
+  medications: "Medication",
+  diagnoses: "Condition",
+  allergies: "Allergy",
+  vitals: "Vital",
+  procedures: "Procedure",
+  notes: "Note",
+};
 
 export default async function DashboardPage({
   searchParams,
@@ -48,9 +69,23 @@ export default async function DashboardPage({
   const facts = timelineEvents.filter(
     (event) => event.category !== "documents",
   );
-  const conditions = facts.filter((event) => event.category === "diagnoses");
-  const allergies = facts.filter((event) => event.category === "allergies");
-  const medications = facts.filter((event) => event.category === "medications");
+  const conditions = cleanSnapshotItems(
+    facts
+      .filter((event) => event.category === "diagnoses")
+      .map((event) => event.title),
+  );
+  const allergies = cleanSnapshotItems(
+    facts
+      .filter((event) => event.category === "allergies")
+      .map((event) => event.title),
+  );
+  const medications = cleanSnapshotItems(
+    facts
+      .filter((event) => event.category === "medications")
+      .map((event) => event.title),
+  );
+  const snapshotItemCount =
+    conditions.length + allergies.length + medications.length;
   const pendingDocumentIds = new Set(
     (recordsResult.data ?? [])
       .filter((record) => record.review_status === "extracted")
@@ -119,7 +154,7 @@ export default async function DashboardPage({
         </p>
       </div>
 
-      <section className="mt-6 grid gap-5 xl:grid-cols-[minmax(300px,.72fr)_minmax(0,1.28fr)]">
+      <section className="mt-6 grid items-start gap-5 xl:grid-cols-[minmax(320px,.78fr)_minmax(0,1.22fr)]">
         <article className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <div className="flex items-center justify-between gap-3">
             <h2 className="flex items-center gap-2.5 text-lg font-semibold">
@@ -127,29 +162,45 @@ export default async function DashboardPage({
               Health snapshot
             </h2>
             <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-teal-800">
-              {facts.length} trusted
+              {facts.length} reviewed
             </span>
           </div>
-          <div className="mt-7 space-y-6">
-            <SnapshotGroup
-              empty="No reviewed conditions"
-              items={conditions.map((item) => withoutPrefix(item.title))}
-              label="Known conditions"
-              tone="amber"
-            />
-            <SnapshotGroup
-              empty="No reviewed allergies"
-              items={allergies.map((item) => withoutPrefix(item.title))}
-              label="Allergies"
-              tone="red"
-            />
-            <SnapshotGroup
-              empty="No reviewed medications"
-              items={medications.map((item) => withoutPrefix(item.title))}
-              label="Current medications in reviewed records"
-              tone="slate"
-            />
-          </div>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            A quick view of reviewed conditions, allergies, and medications.
+          </p>
+          {snapshotItemCount ? (
+            <div className="mt-5 divide-y divide-slate-100">
+              <SnapshotGroup
+                empty="No reviewed conditions"
+                items={conditions}
+                label="Known conditions"
+                tone="amber"
+              />
+              <SnapshotGroup
+                empty="No reviewed allergies"
+                items={allergies}
+                label="Allergies"
+                tone="red"
+              />
+              <SnapshotGroup
+                empty="No reviewed medications"
+                items={medications}
+                label="Medications"
+                tone="slate"
+              />
+            </div>
+          ) : (
+            <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+              <p className="text-sm font-semibold text-slate-700">
+                No snapshot items yet
+              </p>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                Reviewed conditions, allergies, and medications will appear
+                here. Your other reviewed facts remain available in the
+                timeline.
+              </p>
+            </div>
+          )}
           <Link
             className="mt-7 inline-flex text-sm font-semibold text-teal-700"
             href="/records"
@@ -160,31 +211,52 @@ export default async function DashboardPage({
 
         <article className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xl font-bold">Recent medical events</h2>
+            <div>
+              <h2 className="text-lg font-semibold">Recent reviewed facts</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                The latest information you approved or corrected.
+              </p>
+            </div>
             <Link
-              className="text-sm font-semibold text-teal-700"
+              className="hidden shrink-0 text-sm font-semibold text-teal-700 sm:inline-flex"
               href="/timeline"
             >
-              View full timeline →
+              Full timeline →
             </Link>
           </div>
           {facts.length ? (
-            <ol className="mt-6 space-y-5 border-l-2 border-slate-200 pl-5">
+            <ol className="mt-4 divide-y divide-slate-100">
               {facts.slice(0, 5).map((event) => (
-                <li className="relative" key={event.id}>
-                  <span className="absolute -left-[1.72rem] top-1 h-3 w-3 rounded-full border-2 border-teal-600 bg-white" />
-                  <time className="text-xs font-semibold text-slate-400">
-                    {new Date(event.date).toLocaleDateString()}
+                <li
+                  className="grid gap-2 py-4 first:pt-2 sm:grid-cols-[84px_minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+                  key={event.id}
+                >
+                  <time className="text-xs font-medium text-slate-400">
+                    {new Date(event.date).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
                   </time>
-                  <h3 className="mt-1 font-semibold">{event.title}</h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {event.description}
-                  </p>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-700">
+                        {eventCategoryLabels[event.category] ?? event.category}
+                      </span>
+                      <h3 className="truncate text-sm font-semibold text-slate-900">
+                        {event.title}
+                      </h3>
+                    </div>
+                    <p className="mt-1 truncate text-xs text-slate-400">
+                      {event.description}
+                    </p>
+                  </div>
                   <Link
-                    className="mt-1 inline-block text-xs font-semibold text-teal-700"
+                    aria-label={`View source for ${event.title}`}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-teal-700 transition hover:bg-teal-50"
                     href={event.reviewHref ?? event.sourceHref}
                   >
-                    View source
+                    <UiIcon className="h-4 w-4" name="arrow" />
                   </Link>
                 </li>
               ))}
@@ -197,6 +269,9 @@ export default async function DashboardPage({
               </p>
             </div>
           )}
+          <Link className="mt-3 inline-flex text-sm font-semibold text-teal-700 sm:hidden" href="/timeline">
+            View full timeline →
+          </Link>
         </article>
       </section>
 
@@ -278,20 +353,25 @@ function SnapshotGroup({
   tone: "amber" | "red" | "slate";
 }) {
   const tones = {
-    amber: "bg-amber-50 text-amber-800",
-    red: "bg-red-50 text-red-700",
-    slate: "bg-slate-50 text-slate-700",
+    amber: "bg-amber-50 text-amber-800 ring-amber-100",
+    red: "bg-red-50 text-red-700 ring-red-100",
+    slate: "bg-slate-50 text-slate-700 ring-slate-100",
   };
   return (
-    <div>
-      <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-        {label}
-      </p>
-      <div className="mt-2 flex flex-wrap gap-2">
+    <section className="py-4 first:pt-1 last:pb-1">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold text-slate-500">{label}</p>
         {items.length ? (
-          items.slice(0, 4).map((item) => (
+          <span className="text-[11px] font-medium text-slate-400">
+            {items.length}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-2.5 flex flex-wrap gap-2">
+        {items.length ? (
+          items.slice(0, 3).map((item) => (
             <span
-              className={`rounded-full px-3 py-1.5 text-sm font-medium ${tones[tone]}`}
+              className={`max-w-full truncate rounded-lg px-2.5 py-1.5 text-xs font-medium ring-1 ${tones[tone]}`}
               key={item}
             >
               {item}
@@ -301,7 +381,7 @@ function SnapshotGroup({
           <span className="text-sm text-slate-400">{empty}</span>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
